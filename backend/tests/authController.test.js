@@ -1,7 +1,8 @@
-const { register, login } = require('../controllers/authController');
+const { register, login, getMe } = require('../controllers/authController');
 const User = require('../models/User');
 const { connect, closeDB, clearDB } = require('./setup');
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 
 // Define a secret to be used for testing
 process.env.JWT_SECRET = 'testsecret';
@@ -212,5 +213,73 @@ describe('Auth Controller', () => {
                 })
             );
         })
+    describe('getMe', () => {
+        // it should return the user if logged in
+        it('should return the user if logged in (valid token)', async () => {
+            // Hash the password for comparison
+            const hashedPassword = await bcrypt.hash('ValidPa$$word', 10);
+            const user = await User.create({
+                firstName: 'John',
+                lastName: 'Doe',
+                email: 'testuser@gmail.com',
+                password: hashedPassword,
+                role: 'patient',
+                phoneNumber: '1234567890',
+                dateOfBirth: '1990-01-01',
+                gender: 'male',
+                address: {
+                    streetAddress: '123 Main St',
+                    city: 'New York',
+                    state: 'NY',
+                    zipcode: '10001'
+                },
+                isActive: true
+            });
+            const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '30d' });
+            const req = mockRequest({}, {}, {});
+            req.headers = {
+                authorization: `Bearer ${token}`
+            };
+            const res = mockResponse();
+
+            await getMe(req, res);
+
+            expect(res.status).toHaveBeenCalledWith(200);
+            expect(res.json).toHaveBeenCalledWith({
+                    name: 'John Doe',
+                    email: 'testuser@gmail.com',
+                    role: 'patient'
+                });
+            })
+        })
+        // it should return 401 if token is missing or invalid
+        it('should return 401 if no token is provided', async () => {
+            // Request with no headers
+            const req = mockRequest();
+            const res = mockResponse();
+
+            await getMe(req, res);
+
+            expect(res.status).toHaveBeenCalledWith(401);
+            expect(res.json).toHaveBeenCalledWith(
+                expect.objectContaining({ message: 'Not authorized, no token provided' })
+            );
+        });
+        // it should return 401 if the token is wrong
+        it('should return 401 if token is invalid', async () => {
+            const req = mockRequest();
+            // Attach an incorrect token
+            req.headers = {
+                authorization: 'Bearer invalidtoken'
+            };
+            const res = mockResponse();
+
+            await getMe(req, res);
+
+            expect(res.status).toHaveBeenCalledWith(401);
+            expect(res.json).toHaveBeenCalledWith(
+                expect.objectContaining({ message: 'Not authorized, token failed' })
+            );
+        });
     });
 });
