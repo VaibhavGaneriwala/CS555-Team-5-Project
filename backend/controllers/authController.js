@@ -64,7 +64,8 @@ export const loginUser = async (req, res) => {
                 _id: _id,
                 name: name,
                 email: email,
-                token: generateToken(_id)
+                token: generateToken(_id),
+                message: 'Logged in successfully!'
             })
         } else {
             // side note: was thinking of checking for valid email/password separately,
