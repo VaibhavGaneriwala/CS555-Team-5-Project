@@ -14,7 +14,10 @@ app.use(express.json());
 app.use(cors());
 
 app.get('/', (req, res) => res.send('App running'));
+app.get('/test', (req, res) => res.send('Test successful!'))
 app.use('/api/auth', authRoutes);
 
 const PORT = 5001
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`))
+
+export default app;
