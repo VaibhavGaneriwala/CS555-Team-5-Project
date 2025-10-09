@@ -1,10 +1,16 @@
 // Controller to handle user authentication
 import User from '../models/User.js'
 import generateToken from '../utils/generateToken.js'
+import registerValidation from '../utils/validation.js'
 
 // Register the user
 export const registerUser = async (req, res) => {
     try {
+        // validate the user credentials
+        const { error } = registerValidation.validate(req.body);
+        if (error) {
+            return res.status(400).json({ message: error.details[0].message });
+        }
         const { name, email, password } = req.body;
         // check if a user exists with the email entered
         const exists = await User.findOne({ email });

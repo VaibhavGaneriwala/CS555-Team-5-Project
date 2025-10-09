@@ -5,8 +5,15 @@ import bcrypt from 'bcryptjs'
 const userSchema = new mongoose.Schema({
     // mongoose creates an _id field by default, which will be the PK
     name: { type: String, required: true},
-    email: { type: String, required: true, unique: true},
-    password: { type: String, required: true}
+    email: { 
+        type: String, 
+        required: [true, "Email address is required"], 
+        unique: true,
+    },
+    password: { 
+        type: String, 
+        required: true,
+    }
 });
 
 // Hashing password
