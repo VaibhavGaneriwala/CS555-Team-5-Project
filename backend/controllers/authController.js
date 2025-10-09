@@ -45,6 +45,11 @@ export const registerUser = async (req, res) => {
 export const loginUser = async (req, res) => {
     try {
         const { email, password} = req.body;
+        if (!email || !password) {
+            return res.status(401).json({
+                message: 'Missing credentials'
+            })
+        }
         const user = await User.findOne({ email });
         // make sure the user exists and the password is valid
         if (user && (await user.matchPassword(password))) {
