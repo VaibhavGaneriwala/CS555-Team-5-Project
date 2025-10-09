@@ -6,19 +6,18 @@ const userSchema = new mongoose.Schema({
     // mongoose creates an _id field by default, which will be the PK
     name: { type: String, required: true},
     email: { type: String, required: true, unique: true},
-    password: { type: String, required: true, select: false } // <-- don't allow password to be selected
+    password: { type: String, required: true}
 });
 
 // Hashing password
 userSchema.pre('save', async function(next) {
     // if the password isn't changed, we don't need to re-save it
-    if (!this.isModified('password')) {
-        next();
-    }
+    if (!this.isModified('password')) return next();
     // generate salt to ensure even if two passwords are the same,
     // they result in different hashes
     const salt = await bcrypt.genSalt(10)
     this.password = await bcrypt.hash(this.password, salt)
+    next();
 });
 
 // Compare passwords for authentication
