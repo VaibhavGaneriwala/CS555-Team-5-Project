@@ -30,10 +30,10 @@ export const registerUser = async (req, res) => {
         if (user) {
             const { _id, name, email}  = user
             res.status(201).json({
-                _id: _id,
+                _id: _id.toString(),
                 name: name,
                 email: email,
-                message: 'Registed successfully!'
+                message: 'Registered successfully!'
             });
         } else {
             res.status(400).json({ message: 'Failed to register user: invalid info' });
@@ -60,8 +60,8 @@ export const loginUser = async (req, res) => {
         // make sure the user exists and the password is valid
         if (user && (await user.matchPassword(password))) {
             const { _id, name, email } = user
-            res.json({
-                _id: _id,
+            res.status(200).json({
+                _id: _id.toString(),
                 name: name,
                 email: email,
                 token: generateToken(_id),
