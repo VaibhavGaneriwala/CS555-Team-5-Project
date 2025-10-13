@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "MediTracker",
-    "slug": "MediTracker",
+    "name": "CS555-Team-5-Project",
+    "slug": "CS555-Team-5-Project",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "meditracker",
+    "scheme": "cs555team5project",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
