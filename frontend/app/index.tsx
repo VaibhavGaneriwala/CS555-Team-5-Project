@@ -22,7 +22,7 @@ export default function Index() {
           textAlign: "center",
         }}
       >
-        Tailwind is active 🎉
+        Login Page
       </Text>
 
       <Pressable
