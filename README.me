@@ -20,6 +20,7 @@ The backend is built using **Firebase** and **Node.js (Express)**, ensuring real
 
 
 ## 🧠 System Architecture
+```bash
 Frontend (React Native / Flutter)
 │
 ▼
@@ -30,8 +31,7 @@ Firebase Services
 ├── Firestore (DB)
 ├── Authentication
 └── Cloud Storage
-
-
+```
 
 
 ## 🛠️ Technologies Used
@@ -55,6 +55,7 @@ Firebase Services
 
 
 ## 🧩 Folder Structure
+```bash
 Medication-Adherence-Tracker/
 │
 ├── backend/
@@ -74,8 +75,7 @@ Medication-Adherence-Tracker/
 │ └── firebaseConfig.js
 │
 └── README.md
-
-
+```
 
 
 ## 💡 API Overview
