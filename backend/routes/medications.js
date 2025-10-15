@@ -1,10 +1,15 @@
-const express = require('express');
+import express from "express";
+import {
+  createMedication,
+  getMedications,
+  updateMedication,
+  deleteMedication,
+} from "../controllers/medicationController.js";
+
 const router = express.Router();
-const {createMedication, getMedications, getMedicationById, updateMedication, deleteMedication} = require('../controllers/medicationController');
-const {protect} = require('../middleware/auth');
+router.post("/", createMedication);
+router.get("/", getMedications);
+router.put("/:id", updateMedication);
+router.delete("/:id", deleteMedication);
 
-router.route('/').post(protect, createMedication).get(protect, getMedications);
-
-router.route('/:id').get(protect, getMedicationById).put(protect, updateMedication).delete(protect, deleteMedication);
-
-module.exports = router;
+export default router;
