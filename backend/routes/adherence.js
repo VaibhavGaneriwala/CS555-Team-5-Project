@@ -1,10 +1,15 @@
-const express = require('express');
+import express from "express";
+import {
+  logAdherence,
+  getAdherenceLogs,
+  updateAdherenceLog,
+  deleteAdherenceLog,
+} from "../controllers/adherenceController.js";
+
 const router = express.Router();
-const {logAdherence, getAdherenceLogs, getAdherenceStats, updateAdherenceLog, deleteAdherenceLog} = require('../controllers/adherenceController');
-const {protect} = require('../middleware/auth');
+router.post("/", logAdherence);
+router.get("/", getAdherenceLogs);
+router.put("/:id", updateAdherenceLog);
+router.delete("/:id", deleteAdherenceLog);
 
-router.route('/').post(protect, logAdherence).get(protect, getAdherenceLogs);
-router.route('/stats').get(protect, getAdherenceStats);
-router.route('/:id').put(protect, updateAdherenceLog).delete(protect, deleteAdherenceLog);
-
-module.exports = router;
+export default router;
