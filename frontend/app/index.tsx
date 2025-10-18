@@ -1,96 +1,73 @@
-import React from "react";
-import { View, Text, Pressable } from "react-native";
-import { router } from "expo-router";
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
+} from 'react-native';
+import { router } from 'expo-router';
 
-export default function Index() {
+export default function LoginScreen() {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+
+  const handleLogin = () => {
+    const trimmedUsername = username.trim().toLowerCase();
+
+    // Simulated role-based navigation
+    if (trimmedUsername === 'admin') {
+      router.push('/(admin)/AdminHome');
+    } else if (trimmedUsername === 'patient') {
+      router.push('/(patient)/PatientHome');
+    } else if (trimmedUsername === 'provider') {
+      router.push('/(provider)/ProviderHome');
+    } else {
+      alert('Invalid username. Try "admin", "patient", or "provider".');
+    }
+  };
+
   return (
-    <View
-      style={{
-        flex: 1,
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: "#0f172a",
-        paddingHorizontal: 20,
-      }}
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      className="flex-1 justify-center items-center px-6 bg-white dark:bg-gray-900 transition-colors duration-300"
     >
-      <Text
-        style={{
-          color: "white",
-          fontSize: 24,
-          fontWeight: "bold",
-          marginBottom: 32,
-          textAlign: "center",
-        }}
-      >
-        Login Page
-      </Text>
-
-      <Pressable
-        onPress={() => router.push("/AdminHome")}
-        style={{
-          backgroundColor: "#3b82f6",
-          paddingHorizontal: 20,
-          paddingVertical: 10,
-          borderRadius: 8,
-          marginBottom: 12,
-          width: "80%",
-          alignItems: "center",
-        }}
-      >
-        <Text style={{ color: "white", fontWeight: "600", fontSize: 16 }}>
-          Admin Home
+      <View className="w-full max-w-sm">
+        <Text className="text-3xl font-bold mb-8 text-center text-gray-800 dark:text-white">
+          Welcome
         </Text>
-      </Pressable>
 
-      <Pressable
-        onPress={() => router.push("/HealthcareProviderHome")}
-        style={{
-          backgroundColor: "#10b981",
-          paddingHorizontal: 20,
-          paddingVertical: 10,
-          borderRadius: 8,
-          marginBottom: 12,
-          width: "80%",
-          alignItems: "center",
-        }}
-      >
-        <Text style={{ color: "white", fontWeight: "600", fontSize: 16 }}>
-          Healthcare Provider Home
-        </Text>
-      </Pressable>
+        {/* Username Input */}
+        <TextInput
+          value={username}
+          onChangeText={setUsername}
+          placeholder="Username"
+          placeholderTextColor="#9CA3AF"
+          className="w-full mb-4 rounded-xl px-4 py-3 shadow-sm bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white transition-colors duration-300"
+        />
 
-      <Pressable
-        onPress={() => router.push("/PatientHome")}
-        style={{
-          backgroundColor: "#f59e0b",
-          paddingHorizontal: 20,
-          paddingVertical: 10,
-          borderRadius: 8,
-          width: "80%",
-          alignItems: "center",
-        }}
-      >
-        <Text style={{ color: "white", fontWeight: "600", fontSize: 16 }}>
-          Patient Home
-        </Text>
-      </Pressable>
-    </View>
+        {/* Password Input */}
+        <TextInput
+          value={password}
+          onChangeText={setPassword}
+          placeholder="Password"
+          placeholderTextColor="#9CA3AF"
+          secureTextEntry
+          className="w-full mb-6 rounded-xl px-4 py-3 shadow-sm bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white transition-colors duration-300"
+        />
+
+        {/* Login Button */}
+        <TouchableOpacity
+          onPress={handleLogin}
+          activeOpacity={0.8}
+          className="w-full bg-blue-500 py-3 rounded-xl"
+        >
+          <Text className="text-white text-center text-lg font-semibold">
+            Log In
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </KeyboardAvoidingView>
   );
 }
-
-
-// import { View, Text, Pressable } from "react-native";
-
-// export default function Index() {
-//   return (
-//     <View className="flex-1 items-center justify-center bg-slate-900">
-//       <Text className="text-white text-3xl font-bold mb-6">
-//         Tailwind is active 🎉
-//       </Text>
-
-//       <Pressable className="bg-blue-500 px-4 py-2 rounded-lg">
-//         <Text className="text-white font-semibold">Press me</Text>
-//       </Pressable>
-//     </View>
-//   );
-// }
