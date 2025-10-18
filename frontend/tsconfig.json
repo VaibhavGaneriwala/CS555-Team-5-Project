@@ -6,15 +6,13 @@
       "@/*": [
         "./*"
       ]
-    },
-    "types": ["jest", "react", "react-native"]
+    }
   },
   "include": [
     "**/*.ts",
     "**/*.tsx",
     ".expo/types/**/*.ts",
     "expo-env.d.ts",
-    "**/*.test.ts",
-    "**/*.test.tsx"
-  ],
+    "nativewind-env.d.ts"
+  ]
 }
