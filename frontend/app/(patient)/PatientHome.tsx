@@ -9,31 +9,45 @@ export default function PatientHome() {
         Patient Dashboard
       </Text>
 
-      <View className="w-11/12 bg-gray-200 dark:bg-gray-700 p-6 rounded-xl max-w-[600px] mb-6">
-        <Text className="text-gray-700 dark:text-gray-200 text-center">
-          Patient Overview Placeholder
-        </Text>
+      <View className="flex items-center flex-col sm:flex-row bg-white dark:bg-gray-900 px-4">
+        <View className="flex items-center flex-col">
+          <View className="bg-gray-200 dark:bg-gray-700 mb-4 p-6 rounded-xl w-11/12 sm:max-w-[600px]">
+            <Text className="text-gray-700 dark:text-gray-200 text-center">
+              Patient Overview Placeholder
+            </Text>
+          </View>
+
+          <TouchableOpacity
+            onPress={() => router.push('/(patient)/MedicationCalendar')}
+            activeOpacity={0.8}
+            className="bg-blue-500 px-6 py-3 rounded-xl w-11/12 sm:max-w-[300px]"
+          >
+            <Text className="text-white text-lg font-semibold text-center">
+              Go to Medication Calendar
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        <View className="py-4 sm:py-0" />
+
+        <View className="flex items-center flex-col">
+          <View className="bg-gray-200 dark:bg-gray-700 mb-4 p-6 rounded-xl w-11/12 sm:max-w-[600px]">
+            <Text className="text-gray-700 dark:text-gray-200 text-center">
+              Provider Overview Placeholder
+            </Text>
+          </View>
+
+          <TouchableOpacity
+            onPress={() => router.push('/(patient)/ViewProviders')}
+            activeOpacity={0.8}
+            className="bg-blue-500 px-6 py-3 rounded-xl w-11/12 sm:max-w-[300px]"
+          >
+            <Text className="text-white text-lg font-semibold text-center">
+              Go to View Providers
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
-
-      <TouchableOpacity
-        onPress={() => router.push('/(patient)/MedicationCalendar')}
-        activeOpacity={0.8}
-        className="bg-blue-500 px-6 py-3 rounded-xl max-w-[300px] mb-4 w-11/12"
-      >
-        <Text className="text-white text-lg font-semibold text-center">
-          Go to Medication Calendar
-        </Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        onPress={() => router.push('/(patient)/ViewProviders')}
-        activeOpacity={0.8}
-        className="bg-blue-500 px-6 py-3 rounded-xl max-w-[300px] w-11/12"
-      >
-        <Text className="text-white text-lg font-semibold text-center">
-          Go to View Providers
-        </Text>
-      </TouchableOpacity>
     </View>
   );
 }

@@ -1,39 +1,30 @@
-// components/ThemeToggle.tsx
 import React, { useState, useEffect } from 'react';
-import { TouchableOpacity, Text, useColorScheme } from 'react-native';
+import { TouchableOpacity } from 'react-native';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 
 type ThemeToggleProps = {
   onThemeChange?: (theme: 'light' | 'dark') => void;
 };
 
 const ThemeToggle: React.FC<ThemeToggleProps> = ({ onThemeChange }) => {
-  const systemScheme = useColorScheme();
-  const [manualScheme, setManualScheme] = useState<'light' | 'dark' | null>(null);
-  const theme = manualScheme || systemScheme || 'light';
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const isDark = theme === 'dark';
 
   useEffect(() => {
-    if (onThemeChange) onThemeChange(theme);
+    onThemeChange?.(theme);
   }, [theme]);
 
   const toggleTheme = () => {
-    setManualScheme(prev => (prev === 'dark' ? 'light' : 'dark'));
+    setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
   };
 
   return (
-    <TouchableOpacity
-      onPress={toggleTheme}
-      className={`py-2 px-4 rounded-xl border ${
-        isDark ? 'border-gray-700' : 'border-gray-300'
-      }`}
-    >
-      <Text
-        className={`text-center font-medium ${
-          isDark ? 'text-gray-300' : 'text-gray-700'
-        }`}
-      >
-        Switch to {isDark ? 'Light' : 'Dark'} Mode
-      </Text>
+    <TouchableOpacity onPress={toggleTheme}>
+      <Ionicons
+        name={isDark ? 'sunny-outline' : 'moon-outline'}
+        size={24}
+        color={isDark ? '#fff' : '#000'}
+      />
     </TouchableOpacity>
   );
 };
