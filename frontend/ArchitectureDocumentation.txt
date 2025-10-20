@@ -1,0 +1,27 @@
+root
+app/index.tsx (login page)
+app/+html.tsx
+app/modal.tsx
+app/_layout.tsx
+
+Admin
+app/(admin)/_layout.tsx
+app/(admin)/AdminHome.tsx
+app/(admin)/ViewUsers.tsx
+app/(admin)/EditUser.tsx
+app/(admin)/ViewDatabase.tsx
+app/(admin)/EditDatabaseVariables.tsx
+
+Patient
+app/(patient)/_layout.tsx
+app/(patient)/PatientHome.tsx
+app/(patient)/MedicationCalendar.tsx
+app/(patient)/EditMedication.tsx
+app/(patient)/ViewProviders.tsx
+app/(patient)/ViewProviderInformation.tsx
+
+Healthcare Provider
+app/(provider)/_layout.tsx
+app/(provider)/ProviderHome.tsx
+app/(provider)/ViewPatients.tsx
+app/(provider)/ViewPatient.tsx
