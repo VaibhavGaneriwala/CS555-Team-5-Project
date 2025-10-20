@@ -14,7 +14,7 @@ export default function AdminLayout() {
             onPress={() => router.push('/(admin)/AdminHome')}
             style={{ marginLeft: 15 }}
           >
-            <Ionicons name="home-outline" size={24} color="black" />
+            <Ionicons name="home-outline" size={24} className={'text-black dark:text-white'}/>
           </TouchableOpacity>
         ),
         headerRight: () => (
@@ -22,7 +22,7 @@ export default function AdminLayout() {
             onPress={() => router.push('/')}
             style={{ marginRight: 15 }}
           >
-            <Ionicons name="exit-outline" size={24} color="black" />
+            <Ionicons name="exit-outline" size={24} className={'text-black dark:text-white'}/>
           </TouchableOpacity>
         ),
       }}
