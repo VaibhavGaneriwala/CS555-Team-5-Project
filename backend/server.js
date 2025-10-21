@@ -1,26 +1,23 @@
-const express = require('express');
-const cors = require('cors');
-const dotenv = require('dotenv');
-const connectDB = require('./config/db');
-
+import express from 'express';
+import dotenv from 'dotenv';
+// Get our env variables
 dotenv.config();
+import connectDB from './config/db.js';
+import authRoutes from './routes/authRoutes.js';
+import cors from 'cors';
 
-const app = express();
-
+// Connect to MongoDB
 connectDB();
 
-app.use(cors());
+const app = express();
 app.use(express.json());
+app.use(cors());
 
-app.use('/', (req, res) => {
-    res.json({message: 'Medication Tracker API is running'});
-});
+app.get('/', (req, res) => res.send('App running'));
+app.get('/test', (req, res) => res.send('Test successful!'))
+app.use('/api/auth', authRoutes);
 
-app.use('/api/auth', require('./routes/auth'));
-app.use('/api/medications', require('./routes/medications'));
-app.use('/api/adherence', require('./routes/adherence'));
+const PORT = 5001
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`))
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-});
+export default app;
