@@ -1,14 +1,8 @@
 // JWT Authentication Middleware
 import jwt from 'jsonwebtoken'
-import user from '../models/User'
 import User from '../models/User';
 
-// Won't use this yet, until adding medications and other user features (like profile)
-
-// Usage (in a route):
-// router.get('/profile', protect, getUserProfile) <-- getUserProfile from controller
-
-const protect = async (req, res, next) => {
+export const protect = async (req, res, next) => {
     let token;
     const secret = process.env.JWT_SECRET
     if (req.headers.authorization && req.headers.authorization.startsWith('Bearer'))
@@ -34,5 +28,3 @@ const protect = async (req, res, next) => {
         })
     }
 }
-
-export default protect;

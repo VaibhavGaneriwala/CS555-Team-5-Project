@@ -11,7 +11,7 @@ export const registerUser = async (req, res) => {
         if (error) {
             return res.status(400).json({ message: error.details[0].message });
         }
-        const { name, email, password } = req.body;
+        const { name, email, password, role } = req.body;
         // check if a user exists with the email entered
         const exists = await User.findOne({ email });
 
@@ -24,7 +24,8 @@ export const registerUser = async (req, res) => {
         const user = await User.create({
             name: name,
             email: email,
-            password: password
+            password: password,
+            role: role
         });
         // check if the user was registered and return info if successful
         if (user) {

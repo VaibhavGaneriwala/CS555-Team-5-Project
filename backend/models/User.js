@@ -13,6 +13,57 @@ const userSchema = new mongoose.Schema({
     password: { 
         type: String, 
         required: true,
+    },
+    role: {
+        type: String,
+        enum: ['admin', 'patient', 'provider'],
+        required: true
+    },
+    dateOfBirth: {
+        type: Date,
+        required: true
+    },
+    patients: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    }],
+    provider: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+    }],
+    gender: {
+        type: String,
+        enum: ['male', 'female', 'other'],
+        default: 'other',
+        required: true,
+    },
+    address: {
+        streetAddress: {
+            type: String,
+            required: true,
+            trim: true
+        },
+        city: {
+            type: String,
+            required: true,
+            trim: true
+        },
+        state: {
+            type: String,
+            required: true,
+            enum: ['AL', 'AK', 'AZ', 'AR', 'AS', 'CA', 'CO', 'CT', 'DE', 'DC', 'FL', 'GA', 'GU', 'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD', 'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ', 'NM', 'NY', 'NC', 'ND', 'MP', 'OH', 'OK', 'OR', 'PA', 'PR', 'RI', 'SC', 'SD', 'TN', 'TX', 'TT', 'UT', 'VT', 'VA', 'VI', 'WA', 'WV', 'WI', 'WY', 'Other'],
+            default: 'Other'
+        },
+        zipcode: {
+            type: String,
+            required: true,
+            trim: true,
+            match: [/^\d{5}$/, 'Invalid zipcode']
+        }
+    },
+    createdAt: {
+        type: Date,
+        default: Date.now,
     }
 });
 
