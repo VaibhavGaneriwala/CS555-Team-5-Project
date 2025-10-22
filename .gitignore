@@ -1,1 +1,128 @@
+# ------------------------------
+# Node / Express / MongoDB backend
+# ------------------------------
+
+# Node modules
+node_modules/
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Coverage and test
+coverage/
+.nyc_output/
+jest-cache/
+jest-test-results.json
+test-results.xml
+
+# Build and dist output
+dist/
+build/
+.tmp/
+.temp/
+.cache/
+.eslintcache
+
+# Database files
+*.db
+*.sqlite
+*.db-journal
+
+# PM2 and other process managers
+.pids
+.pm2
+
+# ------------------------------
+# React Native frontend
+# ------------------------------
+
+# React Native build outputs
+ios/build/
+ios/Pods/
+ios/Podfile.lock
+android/app/build/
+android/.gradle/
+android/.idea/
+android/local.properties
+android/.cxx/
+android/gradle/
+android/gradlew*
+android/gradlew.bat
+
+# React Native Metro / cache
 .expo/
+.expo-shared/
+.expo-dev/
+expo-packager-cache-*
+metro-cache/
+react-native-packager-cache-*
+package-lock.json
+
+# Watchman
+.watchmanconfig
+.watchman/
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# VSCode and JetBrains
+.vscode/
+.idea/
+*.iml
+
+# Temporary files
+*.tmp
+*.swp
+*.swo
+*.bak
+*.orig
+
+# Yarn / npm logs
+yarn.lock
+npm-debug.log*
+
+# TypeScript
+*.tsbuildinfo
+
+# ------------------------------
+# Other
+# ------------------------------
+
+# Git / Merge artifacts
+*.orig
+*.rej
+
+# dotenv backups
+.env.backup
+.env.example
+
+# Local development config
+config/local.json
+config/dev.json
+
+# Firebase / Google services
+google-services.json
+GoogleService-Info.plist
+
+# Xcode user data
+ios/DerivedData/
+*.xcworkspace/
+*.xcuserstate
+*.xcuserdatad
