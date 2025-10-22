@@ -6,25 +6,48 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
+  Alert
 } from 'react-native';
 import { router } from 'expo-router';
 
 export default function LoginScreen() {
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  const handleLogin = () => {
-    const trimmedUsername = username.trim().toLowerCase();
+  const handleLogin = async () => {
+    if (!email || !password) {
+      Alert.alert('Login error', 'Missing credentials')
+      return;
+    }
+    try {
+      // Make the POST request to the backend to log in
+      const response = await fetch('http://localhost:3000/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({email, password})
+      });
 
-    // Simulated role-based navigation
-    if (trimmedUsername === 'admin') {
-      router.push('/(admin)/AdminHome');
-    } else if (trimmedUsername === 'patient') {
+      const data = await response.json();
+      // Validate the response
+      if (!response.ok) {
+        throw new Error(data.message || 'Login failed');
+      }
+
+      // Redirect based on the role
+      // if (data.role === 'admin') {
+      //   router.push('/(admin)/AdminHome');
+      // } else if (data.role === 'provider') {
+      //   router.push('/(provider)/ProviderHome');
+      // } else {
+      //   router.push('/(patient)/PatientHome');
+      // }
       router.push('/(patient)/PatientHome');
-    } else if (trimmedUsername === 'provider') {
-      router.push('/(provider)/ProviderHome');
-    } else {
-      alert('Invalid username. Try "admin", "patient", or "provider".');
+
+    } catch (error) {
+      Alert.alert('Login error');
+      return;
     }
   };
 
@@ -40,8 +63,8 @@ export default function LoginScreen() {
 
         {/* Username Input */}
         <TextInput
-          value={username}
-          onChangeText={setUsername}
+          value={email}
+          onChangeText={setEmail}
           placeholder="Username"
           placeholderTextColor="#9CA3AF"
           className="w-full mb-4 rounded-xl px-4 py-3 shadow-sm bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white transition-colors duration-300"
