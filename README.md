@@ -1,19 +1,19 @@
 # 💊 Medication Adherence Tracker (Team 5 — CS 555 Project)
 
 ## 📌 Project Overview
-**Medication Adherence Tracker (MAT)** is a mobile-based health application designed to help patients **track, manage, and adhere** to their prescribed medication schedules.  
+**Medication Adherence Tracker (MAT)** is a web and mobile-based health application designed to help patients **track, manage, and adhere** to their prescribed medication schedules.  
 The system provides **timely reminders**, **progress monitoring**, and **secure data management**, enabling better patient outcomes through technology-driven medication discipline.  
 
-The backend is built using **Firebase** and **Node.js (Express)**, ensuring real-time synchronization, data integrity, and scalable performance across platforms.
+The backend is built using **MongoDB** and **Node.js (Express)**, ensuring real-time synchronization, data integrity, and scalable performance across platforms.
 
 
 
 ## 🚀 Key Features
-- 🔐 **User Authentication:** Secure sign-up and login with Firebase Authentication.  
+- 🔐 **User Authentication:** Secure sign-up and login with Mongo Authentication.  
 - 💊 **Medication Management:** Add, update, and delete medications with dosage and schedule details.  
 - ⏰ **Smart Reminders:** Automated notifications to ensure timely dosage intake.  
 - 📈 **Adherence Tracking:** Track missed and completed doses for progress analysis.  
-- ☁️ **Cloud Integration:** Data stored securely using **Firebase Firestore**.  
+- ☁️ **Cloud Integration:** Data stored securely using **MongoDB**.
 - 🧩 **Modular Backend APIs:** RESTful endpoints for user and medication operations.  
 - 💬 **Team Collaboration:** Managed via GitHub, Slack, and Jira for continuous integration and Agile workflow.  
 
@@ -27,8 +27,8 @@ Frontend (React Native / Flutter)
 Express.js API
 │
 ▼
-Firebase Services
-├── Firestore (DB)
+MongoDB Services
+├── MongoDB (DB)
 ├── Authentication
 └── Cloud Storage
 ```
@@ -38,7 +38,7 @@ Firebase Services
 | Category | Tools & Technologies |
 |-----------|----------------------|
 | **Backend** | Node.js, Express.js |
-| **Database & Cloud** | Firebase Firestore, Firebase Authentication |
+| **Database & Cloud** | MongoDB |
 | **Version Control** | GitHub (Team Repository) |
 | **Project Management** | Jira / Excel (User Stories, Burndown, Velocity) |
 | **Communication** | Slack (Team & Instructor Updates) |
@@ -47,7 +47,7 @@ Firebase Services
 
 
 ## ⚙️ How It Works
-1. 🧾 **User Registration & Login:** Users authenticate securely via Firebase Auth.  
+1. 🧾 **User Registration & Login:** Users authenticate securely.  
 2. 💊 **Medication Entry:** Users input medicine name, dosage, and schedule.  
 3. ⏰ **Reminders Triggered:** System sends alerts at the scheduled times.  
 4. 📊 **Adherence Monitoring:** Tracks intake behavior and displays completion stats.  
@@ -106,7 +106,7 @@ Medication-Adherence-Tracker/
 - Firebase Project & Service Account Key  
 - `.env` file with configuration:
   ```bash
-  PORT=5000
+  PORT=3000
   GOOGLE_APPLICATION_CREDENTIALS=./serviceAccountKey.json
   ```
 
