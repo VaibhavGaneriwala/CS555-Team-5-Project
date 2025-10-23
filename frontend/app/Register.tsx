@@ -5,19 +5,30 @@ import {
   TextInput,
   TouchableOpacity,
   KeyboardAvoidingView,
-  Platform,
-  Alert
+  Platform
 } from 'react-native';
 import { router } from 'expo-router';
+import { Dropdown } from 'react-native-element-dropdown';
 
 export default function LoginScreen() {
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [role, setRole] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [validationError, setValidationError] = useState('');
+  
+  const [isFocus, setIsFocus] = useState(false);
 
-  const handleLogin = async () => {
+  const roleDropdown = [
+    { label: 'Admin', value: 'admin' },
+    { label: 'Patient', value: 'patient' },
+    { label: 'Provider', value: 'provider' },
+  ];
+
+  const handleRegister = async () => {
     // Validation for empty fields
-    if (!email || !password) {
+    if (!firstName || !lastName || !role || !email || !password) {
       setValidationError('Please fill out all fields before proceeding.');
       return;
     } else {
@@ -25,34 +36,23 @@ export default function LoginScreen() {
     }
 
     try {
-      // Make the POST request to the backend to log in
       const response = await fetch('http://localhost:3000/api/auth/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({email, password})
+        body: JSON.stringify({ email, password })
       });
 
       const data = await response.json();
-      // Validate the response
       if (!response.ok) {
         throw new Error(data.message || 'Login failed');
       }
 
-      // Redirect based on the role
-      // if (data.role === 'admin') {
-      //   router.push('/(admin)/AdminHome');
-      // } else if (data.role === 'provider') {
-      //   router.push('/(provider)/ProviderHome');
-      // } else {
-      //   router.push('/(patient)/PatientHome');
-      // }
+      // router.push() can be customized based on role
       router.push('/(patient)/PatientHome');
-
     } catch (error) {
-      Alert.alert('Login error');
-      return;
+      console.error('Login error', error);
     }
   };
 
@@ -66,16 +66,50 @@ export default function LoginScreen() {
           Welcome
         </Text>
 
-        {/* Username Input */}
+        <TextInput
+          value={firstName}
+          onChangeText={setFirstName}
+          placeholder="First Name"
+          placeholderTextColor="#9CA3AF"
+          className="w-full mb-4 rounded-xl px-4 py-3 shadow-sm bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white transition-colors duration-300"
+        />
+
+        <TextInput
+          value={lastName}
+          onChangeText={setLastName}
+          placeholder="Last Name"
+          placeholderTextColor="#9CA3AF"
+          className="w-full mb-4 rounded-xl px-4 py-3 shadow-sm bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white transition-colors duration-300"
+        />
+
+        <View className="w-full mb-4 rounded-xl px-4 py-3 shadow-sm bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white transition-colors duration-300">
+          <Dropdown
+            style={[
+              { borderWidth: 1, borderColor: isFocus ? '#3b82f6' : '#e5e7eb' },
+            ]}
+            data={roleDropdown}
+            labelField="label"
+            valueField="value"
+            placeholder={!isFocus ? 'Select Role' : '...'}
+            value={role}
+            onFocus={() => setIsFocus(true)}
+            onBlur={() => setIsFocus(false)}
+            onChange={item => {
+              setRole(item.value);
+              setIsFocus(false);
+            }}
+          />
+        </View>
+
         <TextInput
           value={email}
           onChangeText={setEmail}
           placeholder="Email"
           placeholderTextColor="#9CA3AF"
+          keyboardType="email-address"
           className="w-full mb-4 rounded-xl px-4 py-3 shadow-sm bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white transition-colors duration-300"
         />
 
-        {/* Password Input */}
         <TextInput
           value={password}
           onChangeText={setPassword}
@@ -89,25 +123,25 @@ export default function LoginScreen() {
           <Text className="text-red-500 text-center mb-4">{validationError}</Text>
         ) : null}
 
-        {/* Login Button */}
         <TouchableOpacity
-          onPress={handleLogin}
+          onPress={handleRegister}
           activeOpacity={0.8}
           className="w-full bg-blue-500 py-3 rounded-xl"
         >
           <Text className="text-white text-center text-lg font-semibold">
-            Log In
+            Register
           </Text>
         </TouchableOpacity>
+
         <Text className="text-gray-800 dark:text-white text-center text-base font-normal mt-4">
-          Don't have an account?
+          Already have an account?
         </Text>
         <View className="flex justify-center items-center flex-row">
           <Text className="text-gray-800 dark:text-white text-center text-base font-normal">
-            Register for one{' '}
+            Log in{' '}
           </Text>
           <Text
-            onPress={() => router.push('/Register')}
+            onPress={() => router.push('/')}
             className="text-blue-400 text-center text-base font-normal"
           >
             here
