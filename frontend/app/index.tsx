@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   View,
   Text,
@@ -39,6 +40,8 @@ export default function LoginScreen() {
       if (!response.ok) {
         throw new Error(data.message || 'Login failed');
       }
+      // Save the token for middlware validation in the future
+      await AsyncStorage.setItem('token', data.token);
 
       // Redirect based on the role
       // if (data.role === 'admin') {
