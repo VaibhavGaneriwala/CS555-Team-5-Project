@@ -38,7 +38,10 @@ export default function LoginScreen() {
       const data = await response.json();
       // Validate the response
       if (!response.ok) {
-        throw new Error(data.message || 'Login failed');
+        setValidationError('Invalid credentials!');
+        return;
+      } else {
+        setValidationError('');
       }
       // Save the token for middlware validation in the future
       await AsyncStorage.setItem('token', data.token);
@@ -52,7 +55,6 @@ export default function LoginScreen() {
       //   router.push('/(patient)/PatientHome');
       // }
       router.push('/(patient)/PatientHome');
-
     } catch (error) {
       Alert.alert('Login error');
       return;
