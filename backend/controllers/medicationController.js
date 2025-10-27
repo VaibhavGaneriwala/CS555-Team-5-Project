@@ -30,15 +30,19 @@ exports.getMedications = async (req, res) => {
             query.patient = req.user._id;
         } else if (req.user.role === 'provider'){
             const {patientId} = req.query;
-            if (!patientId){
+                // Load provider once and use for both branches
                 const provider = await User.findById(req.user._id);
-                if (!provider.patients.includes(patientId)){
-                    return res.status(403).json({message: 'You are not authorized to access this patient\'s medications'});
-                }
-                query.patient = patientId;
-            } else {
-                const provider = await User.findById(req.user._id);
-                query.patient = {$in: provider.patients};
+                if (patientId){
+                    // Ensure the provider is authorized for the requested patient.
+                    // provider.patients may contain ObjectIds, so compare as strings.
+                    const allowed = provider.patients.map(p => p.toString()).includes(patientId.toString());
+                    if (!allowed){
+                        return res.status(403).json({message: 'You are not authorized to access this patient\'s medications'});
+                    }
+                    query.patient = patientId;
+                } else {
+                    // No specific patient requested: return meds for all patients of this provider
+                    query.patient = { $in: provider.patients };
             }
         } else if (req.user.role === 'admin'){
             const {patientId} = req.query;
