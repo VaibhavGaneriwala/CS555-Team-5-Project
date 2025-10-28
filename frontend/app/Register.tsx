@@ -110,10 +110,16 @@ export default function LoginScreen() {
       }
       // Save the token in Async storage to keep the user logged in
       await AsyncStorage.setItem('token', data.token);
-      // router.push() can be customized based on role
-      router.push('/(patient)/PatientHome');
+      // Role based redirection
+      if (data.role === 'admin') {
+        router.push('/(admin)/AdminHome');
+      } else if (data.role === 'provider') {
+        router.push('/(provider)/ProviderHome');
+      } else {
+        router.push('/(patient)/PatientHome');
+      }
     } catch (error) {
-      console.error('Login error', error);
+      console.error('Registration error', error);
     }
   };
 
