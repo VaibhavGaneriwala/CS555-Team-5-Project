@@ -213,6 +213,7 @@ describe('Auth Controller', () => {
                 })
             );
         })
+    });
     describe('getMe', () => {
         // it should return the user if logged in
         it('should return the user if logged in (valid token)', async () => {
@@ -250,36 +251,35 @@ describe('Auth Controller', () => {
                     email: 'testuser@gmail.com',
                     role: 'patient'
                 });
+            }),
+            // it should return 401 if token is missing
+            it('should return 401 if no token is provided', async () => {
+                // Request with no headers
+                const req = mockRequest();
+                const res = mockResponse();
+
+                await getMe(req, res);
+
+                expect(res.status).toHaveBeenCalledWith(401);
+                expect(res.json).toHaveBeenCalledWith(
+                    expect.objectContaining({ message: 'Not authorized, no token provided' })
+                );
+            }),
+            // it should return 401 if the token is invalid
+            it('should return 401 if token is invalid', async () => {
+                const req = mockRequest();
+                // Attach an invalid token
+                req.headers = {
+                    authorization: 'Bearer invalidtoken'
+                };
+                const res = mockResponse();
+
+                await getMe(req, res);
+
+                expect(res.status).toHaveBeenCalledWith(401);
+                expect(res.json).toHaveBeenCalledWith(
+                    expect.objectContaining({ message: 'Not authorized, token failed' })
+                );
             })
         })
-        // it should return 401 if token is missing or invalid
-        it('should return 401 if no token is provided', async () => {
-            // Request with no headers
-            const req = mockRequest();
-            const res = mockResponse();
-
-            await getMe(req, res);
-
-            expect(res.status).toHaveBeenCalledWith(401);
-            expect(res.json).toHaveBeenCalledWith(
-                expect.objectContaining({ message: 'Not authorized, no token provided' })
-            );
-        });
-        // it should return 401 if the token is wrong
-        it('should return 401 if token is invalid', async () => {
-            const req = mockRequest();
-            // Attach an incorrect token
-            req.headers = {
-                authorization: 'Bearer invalidtoken'
-            };
-            const res = mockResponse();
-
-            await getMe(req, res);
-
-            expect(res.status).toHaveBeenCalledWith(401);
-            expect(res.json).toHaveBeenCalledWith(
-                expect.objectContaining({ message: 'Not authorized, token failed' })
-            );
-        });
-    });
 });
