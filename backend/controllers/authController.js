@@ -22,12 +22,12 @@ exports.register = async (req, res) => {
         const user = await User.create({firstName, lastName, email, password: hashedPassword, role: role || 'patient', phoneNumber, dateOfBirth, gender, address});
         if (user){
             res.status(201).json({
-                _id: user._id,
+                _id: user._id.toString(),
                 firstName: user.firstName,
                 lastName: user.lastName,
                 email: user.email,
                 role: user.role,
-                token: generateToken(user._id)
+                token: generateToken(user._id).toString()
             });
         }
     } catch (error) {
@@ -44,18 +44,18 @@ exports.login = async (req, res) => {
         }
         const user = await User.findOne({email});
         if (!user){
-            return res.status(400).json({message: 'Invalid credentials'});
+            return res.status(401).json({message: 'Invalid credentials'});
         }
         if (!user.isActive) return res.status(400).json({message: 'User is not active'});
         const isMatch = await bcrypt.compare(password, user.password);
-        if (!isMatch) return res.status(400).json({message: 'Invalid credentials'});
+        if (!isMatch) return res.status(401).json({message: 'Invalid credentials'});
         res.status(200).json({
-            _id: user._id,
+            _id: user._id.toString(),
             firstName: user.firstName,
             lastName: user.lastName,
             email: user.email,
             role: user.role,
-            token: generateToken(user._id)
+            token: generateToken(user._id).toString()
         });
     } catch (error) {
         console.error(error);
