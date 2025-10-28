@@ -47,14 +47,13 @@ export default function LoginScreen() {
       await AsyncStorage.setItem('token', data.token);
 
       // Redirect based on the role
-      // if (data.role === 'admin') {
-      //   router.push('/(admin)/AdminHome');
-      // } else if (data.role === 'provider') {
-      //   router.push('/(provider)/ProviderHome');
-      // } else {
-      //   router.push('/(patient)/PatientHome');
-      // }
-      router.push('/(patient)/PatientHome');
+      if (data.role === 'admin') {
+        router.push('/(admin)/AdminHome');
+      } else if (data.role === 'provider') {
+        router.push('/(provider)/ProviderHome');
+      } else {
+        router.push('/(patient)/PatientHome');
+      }
     } catch (error) {
       Alert.alert('Login error');
       return;
