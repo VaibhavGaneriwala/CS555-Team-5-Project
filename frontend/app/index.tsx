@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   View,
   Text,
@@ -9,19 +10,27 @@ import {
   Alert
 } from 'react-native';
 import { router } from 'expo-router';
+import Constants from 'expo-constants';
+
+const API_URL = Constants.expoConfig?.extra?.API_URL ?? 'http://localhost:3000';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [validationError, setValidationError] = useState('');
 
   const handleLogin = async () => {
+    // Validation for empty fields
     if (!email || !password) {
-      Alert.alert('Login error', 'Missing credentials')
+      setValidationError('Please fill out all fields before proceeding.');
       return;
+    } else {
+      setValidationError('');
     }
+
     try {
       // Make the POST request to the backend to log in
-      const response = await fetch('http://localhost:3000/api/auth/login', {
+      const response = await fetch(`${API_URL}/api/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -32,19 +41,22 @@ export default function LoginScreen() {
       const data = await response.json();
       // Validate the response
       if (!response.ok) {
-        throw new Error(data.message || 'Login failed');
+        setValidationError('Invalid credentials!');
+        return;
+      } else {
+        setValidationError('');
       }
+      // Save the token for middlware validation in the future
+      await AsyncStorage.setItem('token', data.token);
 
       // Redirect based on the role
-      // if (data.role === 'admin') {
-      //   router.push('/(admin)/AdminHome');
-      // } else if (data.role === 'provider') {
-      //   router.push('/(provider)/ProviderHome');
-      // } else {
-      //   router.push('/(patient)/PatientHome');
-      // }
-      router.push('/(patient)/PatientHome');
-
+      if (data.role === 'admin') {
+        router.push('/(admin)/AdminHome');
+      } else if (data.role === 'provider') {
+        router.push('/(provider)/ProviderHome');
+      } else {
+        router.push('/(patient)/PatientHome');
+      }
     } catch (error) {
       Alert.alert('Login error');
       return;
@@ -65,7 +77,7 @@ export default function LoginScreen() {
         <TextInput
           value={email}
           onChangeText={setEmail}
-          placeholder="Username"
+          placeholder="Email"
           placeholderTextColor="#9CA3AF"
           className="w-full mb-4 rounded-xl px-4 py-3 shadow-sm bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white transition-colors duration-300"
         />
@@ -80,6 +92,10 @@ export default function LoginScreen() {
           className="w-full mb-6 rounded-xl px-4 py-3 shadow-sm bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white transition-colors duration-300"
         />
 
+        {validationError ? (
+          <Text className="text-red-500 text-center mb-4">{validationError}</Text>
+        ) : null}
+
         {/* Login Button */}
         <TouchableOpacity
           onPress={handleLogin}
@@ -90,6 +106,20 @@ export default function LoginScreen() {
             Log In
           </Text>
         </TouchableOpacity>
+        <Text className="text-gray-800 dark:text-white text-center text-base font-normal mt-4">
+          Don't have an account?
+        </Text>
+        <View className="flex justify-center items-center flex-row">
+          <Text className="text-gray-800 dark:text-white text-center text-base font-normal">
+            Register for one{' '}
+          </Text>
+          <Text
+            onPress={() => router.push('/Register')}
+            className="text-blue-400 text-center text-base font-normal"
+          >
+            here
+          </Text>
+        </View>
       </View>
     </KeyboardAvoidingView>
   );
