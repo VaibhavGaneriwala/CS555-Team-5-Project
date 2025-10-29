@@ -3,6 +3,10 @@ import { View, Text, TouchableOpacity, Modal, FlatList, ActivityIndicator, Alert
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import Constants from 'expo-constants';
+
+const API_URL = Constants.expoConfig?.extra?.API_URL ?? 'http://localhost:3000';
+
 interface Medication {
   _id: string;
   name: string;
@@ -38,7 +42,7 @@ export default function PatientHome() {
     setError(null);
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:3000/api/medications', {
+      const response = await fetch(`${API_URL}/api/medications`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
