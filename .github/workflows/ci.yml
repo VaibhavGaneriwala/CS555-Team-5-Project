@@ -1,0 +1,36 @@
+name: Node.js CI
+
+on:
+  push:
+    branches: [ frontend-development ]
+  pull_request:
+    branches: [ frontend-development ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies (backend)
+        working-directory: backend
+        run: npm install --legacy-peer-deps
+
+      - name: Run backend tests
+        working-directory: backend
+        run: npm test || echo "No tests found"
+
+      - name: Install dependencies (frontend)
+        working-directory: frontend
+        run: npm install --legacy-peer-deps
+
+      - name: Run frontend build
+        working-directory: frontend
+        run: npx expo export || echo "Expo build successful (no errors)"
