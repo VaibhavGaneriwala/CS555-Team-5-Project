@@ -6,6 +6,10 @@ import * as Notifications from 'expo-notifications';
 import { registerForPushNotificationsAsync } from '../utils/notifications';
 import { hasPlatformFeatureAsync } from 'expo-device';
 
+import Constants from 'expo-constants';
+
+const API_URL = Constants.expoConfig?.extra?.API_URL ?? 'http://localhost:3000';
+
 // === Configure Notifications (Global Handler) ===
 Notifications.setNotificationHandler({
   handleNotification: async (notification) => {
@@ -46,7 +50,7 @@ export default function MedicationCalendar() {
   // ---------- Fetch Medications ----------
   const fetchMedications = async () => {
     try {
-      const response = await axios.get<Medication[]>('http://localhost:3000/api/medications', {
+      const response = await axios.get<Medication[]>(`${API_URL}/api/medications`, {
         headers: {
           // Authorization: `Bearer ${token}`, // if using auth
         },
