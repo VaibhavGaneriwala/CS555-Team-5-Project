@@ -1,20 +1,20 @@
 # 💊 Medication Adherence Tracker (Team 5 — CS 555 Project)
 
 ## 📌 Project Overview
-**Medication Adherence Tracker (MAT)** is a web and mobile-based health application designed to help patients **track, manage, and adhere** to their prescribed medication schedules.  
-The system provides **timely reminders**, **progress monitoring**, and **secure data management**, enabling better patient outcomes through technology-driven medication discipline.  
+**Medication Adherence Tracker (MAT)** is a cross-platform health application that helps patients track, manage, and adhere to their prescribed medications.
+The system delivers automated reminders, allows medication **logging and monitoring**, and ensures **secure data management** through a robust **Node.js + MongoDB** backend.
 
-The backend is built using **MongoDB** and **Node.js (Express)**, ensuring real-time synchronization, data integrity, and scalable performance across platforms.
+MAT promotes improved patient outcomes through timely notifications and intuitive medication tracking.
 
 
 
 ## 🚀 Key Features
-- 🔐 **User Authentication:** Secure sign-up and login with Mongo Authentication.  
+- 🔐 **User Authentication:** Secure registration and login using JSON Web Tokens (JWT).  
 - 💊 **Medication Management:** Add, update, and delete medications with dosage and schedule details.  
 - ⏰ **Smart Reminders:** Automated notifications to ensure timely dosage intake.  
 - 📈 **Adherence Tracking:** Track missed and completed doses for progress analysis.  
 - ☁️ **Cloud Integration:** Data stored securely using **MongoDB**.
-- 🧩 **Modular Backend APIs:** RESTful endpoints for user and medication operations.  
+- 🧩 **RESTful APIs:** Modular Express controllers and routes for users, medications, and adherence logs.  
 - 💬 **Team Collaboration:** Managed via GitHub, Slack, and Jira for continuous integration and Agile workflow.  
 
 
@@ -59,20 +59,40 @@ MongoDB Services
 Medication-Adherence-Tracker/
 │
 ├── backend/
-│ ├── config/
-│ │ └── firebase.js
-│ ├── routes/
-│ │ ├── medication.js
-│ │ └── user.js
-│ ├── server.js
-│ ├── .env
-│ └── package.json
+│   ├── config/
+│   │   └── db.js
+│   ├── controllers/
+│   │   ├── authController.js
+│   │   ├── medicationController.js
+│   │   └── adherenceController.js
+│   ├── middleware/
+│   │   └── auth.js
+│   ├── models/
+│   │   ├── User.js
+│   │   ├── Medication.js
+│   │   └── AdherenceLog.js
+│   ├── routes/
+│   │   ├── auth.js
+│   │   ├── medications.js
+│   │   └── adherence.js
+│   ├── utils/
+│   │   └── reminderScheduler.js
+│   ├── server.js
+│   └── package.json
 │
-├── src/
-│ ├── components/
-│ ├── screens/
-│ ├── App.js
-│ └── firebaseConfig.js
+├── frontend/
+│   ├── app/
+│   │   ├── (patient)/
+│   │   │   ├── MedicationCalendar.tsx
+│   │   │   ├── EditMedication.tsx
+│   │   │   └── PatientHome.tsx
+│   │   ├── (provider)/
+│   │   ├── (admin)/
+│   │   └── utils/
+│   │       └── notifications.ts
+│   ├── assets/
+│   ├── app.json
+│   └── package.json
 │
 └── README.md
 ```
@@ -98,6 +118,13 @@ Medication-Adherence-Tracker/
 ✅ Jira updates with user stories and burndown chart  
 ✅ Slack communication logs with demo link  
 
+## 📊 Sprint 2 Deliverables
+✅ Migrated backend to MongoDB
+✅ Implemented automated reminder scheduler (node-cron)
+✅ Integrated frontend notification system (Expo Notifications)
+✅ Role-based access for admin & provider
+✅ Continuous integration with GitHub actions and manual testing
+
 
 
 ## 🧮 Installation & Setup
@@ -107,7 +134,8 @@ Medication-Adherence-Tracker/
 - `.env` file with configuration:
   ```bash
   PORT=3000
-  GOOGLE_APPLICATION_CREDENTIALS=./serviceAccountKey.json
+  MONGODB_URI=your_mongo_connection_string
+  JWT_SECRET=your_jwt_secret
   ```
 
 ### 🧱 Setup Steps
@@ -129,17 +157,12 @@ npm install
 # Run the server
 node server.js
 ```
-
-
-
-## 📸 Example Outputs
-
-- **User Signup / Login Demo**  
-- **Medication Entry Interface**  
-- **API Response Snapshots (Postman)**  
-- **Firebase Firestore Console View**  
-- **Sprint 1 Burndown Chart (Jira)**  
-
+## 📱 Frontend Setup
+```bash
+cd frontend
+npm install
+npx expo start -c
+```
 
 ## 🎯 Future Enhancements
 
