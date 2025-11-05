@@ -10,6 +10,9 @@ import {
   Alert
 } from 'react-native';
 import { router } from 'expo-router';
+import Constants from 'expo-constants';
+
+const API_URL = Constants.expoConfig?.extra?.API_URL ?? 'http://localhost:3000';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -27,7 +30,7 @@ export default function LoginScreen() {
 
     try {
       // Make the POST request to the backend to log in
-      const response = await fetch('http://localhost:3000/api/auth/login', {
+      const response = await fetch(`${API_URL}/api/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
