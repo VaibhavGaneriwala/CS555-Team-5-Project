@@ -86,6 +86,63 @@ exports.getAdherenceStats = async (req, res) => {
     }
 };
 
+exports.getAdherenceReport = async (req, res) => {
+    try {
+        if (req.user.role !== 'provider') {
+            return res.status(403).json({ message: 'Only providers can access adherence reports' });
+        }
+
+        const provider = await User.findById(req.user._id).populate('patients', 'firstName lastName');
+        if (!provider) return res.status(404).json({ message: 'Provider not found' });
+
+        const report = await AdherenceLog.aggregate([
+            { $match: { patient: { $in: provider.patients.map(p => p._id) } } },
+            {
+                $group: {
+                    _id: '$patient',
+                    totalLogs: { $sum: 1 },
+                    taken: { $sum: { $cond: [{ $eq: ['$status', 'taken'] }, 1, 0] } },
+                    missed: { $sum: { $cond: [{ $eq: ['$status', 'missed'] }, 1, 0] } },
+                    skipped: { $sum: { $cond: [{ $eq: ['$status', 'skipped'] }, 1, 0] } },
+                    pending: { $sum: { $cond: [{ $eq: ['$status', 'pending'] }, 1, 0] } }
+                }
+            },
+            {
+                $project: {
+                    _id: 1,
+                    totalLogs: 1,
+                    taken: 1,
+                    missed: 1,
+                    skipped: 1,
+                    pending: 1,
+                    adherenceRate: {
+                        $cond: [
+                            { $gt: ['$totalLogs', 0] },
+                            { $multiply: [{ $divide: ['$taken', '$totalLogs'] }, 100] },
+                            0
+                        ]
+                    }
+                }
+            }
+        ]);
+
+        // Attach patient names
+        const result = report.map(r => {
+            const patient = provider.patients.find(p => p._id.toString() === r._id.toString());
+            return {
+                patientId: r._id,
+                patientName: patient ? `${patient.firstName} ${patient.lastName}` : 'Unknown',
+                ...r
+            };
+        });
+
+        res.status(200).json(result);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+
 exports.updateAdherenceLog = async (req, res) => {
     try{
         let log = await AdherenceLog.findById(req.params.id);
