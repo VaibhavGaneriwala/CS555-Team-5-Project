@@ -5,6 +5,7 @@ dotenv.config();
 const connectDB = require('./config/db');
 console.log(`PORT from env: "${process.env.PORT}"`);
 const app = express();
+const providerRoutes = require('./routes/provider');
 
 connectDB();
 
@@ -13,6 +14,7 @@ app.use(express.json());
 
 // Auth, medications, adherence routes
 app.use('/api/auth', require('./routes/auth'));
+app.use('/api/provider', providerRoutes);
 app.use('/api/medications', require('./routes/medications'));
 app.use('/api/adherence', require('./routes/adherence'));
 
