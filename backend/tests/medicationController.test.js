@@ -283,6 +283,21 @@ describe('Medication Controller', () => {
             const jsonResponse = res.json.mock.calls[0][0];
             expect(jsonResponse._id.toString()).toBe(medication._id.toString());
         });
+        // Should return 404 if invalid id is inputted
+        it('should return 404 if invalid id is inputted', async () => {
+            const { patient } = await createPatientAndProvider();
+            // Create a fake id to search for
+            const wrongId = 'invalidId';
+            // Get the medication based on it's id
+            const req = mockRequest({}, { id: wrongId }, {}, patient);
+            const res = mockResponse();
+            await updateMedication(req, res);
+            expect(res.status).toHaveBeenCalledWith(404);
+            const jsonResponse = res.json.mock.calls[0][0];
+            expect(jsonResponse).toMatchObject({
+                message: expect.stringContaining('Medication Id is invalid')
+            });
+        });
         // Should return 404 if medication is not found
         it('should return 404 if medication is not found', async () => {
             const { patient } = await createPatientAndProvider();
@@ -415,6 +430,21 @@ describe('Medication Controller', () => {
             const jsonResponse = res.json.mock.calls[0][0];
             expect(jsonResponse.dosage).toBe("550 mg");
         });
+        // Should return 404 if invalid id is inputted
+        it('should return 404 if invalid id is inputted', async () => {
+            const { patient } = await createPatientAndProvider();
+            // Create a fake id to search for
+            const wrongId = 'invalidId';
+            // Get the medication based on it's id
+            const req = mockRequest({}, { id: wrongId }, {}, patient);
+            const res = mockResponse();
+            await updateMedication(req, res);
+            expect(res.status).toHaveBeenCalledWith(404);
+            const jsonResponse = res.json.mock.calls[0][0];
+            expect(jsonResponse).toMatchObject({
+                message: expect.stringContaining('Medication Id is invalid')
+            });
+        });
         // Should return 404 if medication is not found
         it('should return 404 if medication is not found', async () => {
             const { patient } = await createPatientAndProvider();
@@ -423,7 +453,7 @@ describe('Medication Controller', () => {
             // Get the medication based on it's id
             const req = mockRequest({}, { id: fakeId }, {}, patient);
             const res = mockResponse();
-            await getMedicationById(req, res);
+            await updateMedication(req, res);
             expect(res.status).toHaveBeenCalledWith(404);
             const jsonResponse = res.json.mock.calls[0][0];
             expect(jsonResponse).toMatchObject({
@@ -472,7 +502,7 @@ describe('Medication Controller', () => {
             expect(res.status).toHaveBeenCalledWith(403);
             const jsonResponse = res.json.mock.calls[0][0];
             expect(jsonResponse).toMatchObject({
-                message: expect.stringContaining('Not authorized to update this medication')
+                message: expect.stringContaining('You are not authorized to update this medication')
             });
         });
         it('should return 404 if trying to access another user\'s medication', async () => {
@@ -550,6 +580,21 @@ describe('Medication Controller', () => {
                 message: expect.stringContaining('Medication deleted successfully')
             });
         });
+        // Should return 404 if invalid id is inputted
+        it('should return 404 if invalid id is inputted', async () => {
+            const { patient } = await createPatientAndProvider();
+            // Create a fake id to search for
+            const wrongId = 'invalidId';
+            // Get the medication based on it's id
+            const req = mockRequest({}, { id: wrongId }, {}, patient);
+            const res = mockResponse();
+            await deleteMedication(req, res);
+            expect(res.status).toHaveBeenCalledWith(404);
+            const jsonResponse = res.json.mock.calls[0][0];
+            expect(jsonResponse).toMatchObject({
+                message: expect.stringContaining('Medication Id is invalid')
+            });
+        });
         // Should return 404 if medication is not found
         it('should return 404 if medication is not found', async () => {
             const { patient } = await createPatientAndProvider();
@@ -606,7 +651,7 @@ describe('Medication Controller', () => {
             expect(res.status).toHaveBeenCalledWith(403);
             const jsonResponse = res.json.mock.calls[0][0];
             expect(jsonResponse).toMatchObject({
-                message: expect.stringContaining('Not authorized to delete this medication')
+                message: expect.stringContaining('You are not authorized to delete this medication')
             });
         });
         // Should return 404 if trying to delete medication if not the user's provider
@@ -651,7 +696,7 @@ describe('Medication Controller', () => {
             expect(res.status).toHaveBeenCalledWith(403);
             const jsonResponse = res.json.mock.calls[0][0];
             expect(jsonResponse).toMatchObject({
-                message: expect.stringContaining('Not authorized to delete this medication')
+                message: expect.stringContaining('You are not authorized to delete this medication')
             });
         });
     });
