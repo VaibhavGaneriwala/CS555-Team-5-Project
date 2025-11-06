@@ -27,6 +27,16 @@ export default function ProviderHome() {
             </Text>
           </TouchableOpacity>
         </View>
+        
+        <TouchableOpacity
+          onPress={() => router.push('/(provider)/ViewReports' as any)}
+          activeOpacity={0.8}
+          className="bg-green-500 px-6 py-3 rounded-xl w-11/12 sm:max-w-[300px] sm:ml-8 mt-6 sm:mt-0"
+        >
+          <Text className="text-white text-lg font-semibold text-center">
+            View Adherence Reports
+          </Text>
+        </TouchableOpacity>
 
         {/* <View className="py-4 sm:py-0" />
 
