@@ -16,6 +16,7 @@ app.use(express.json());
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/provider', providerRoutes);
 app.use('/api/medications', require('./routes/medications'));
+app.use('/api/patient', require('./routes/patient'));
 app.use('/api/adherence', require('./routes/adherence'));
 
 const port = process.env.PORT
