@@ -3,30 +3,17 @@ import { View, Text, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { router } from 'expo-router';
 import axios from 'axios';
 import * as Notifications from 'expo-notifications';
-import { registerForPushNotificationsAsync } from '../utils/notifications';
-import { hasPlatformFeatureAsync } from 'expo-device';
-
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
+import { registerForPushNotificationsAsync } from '../utils/notifications';
 
-const API_URL = Constants.expoConfig?.extra?.API_URL ?? 'http://localhost:3000';
+const API_URL =
+  Constants.expoConfig?.extra?.API_URL ?? 'http://localhost:3000';
 
-// === Configure Notifications (Global Handler) ===
-Notifications.setNotificationHandler({
-  handleNotification: async (notification) => {
-    return {
-      shouldShowAlert: true,
-      shouldPlaySound: true,
-      shouldSetBadge: true,
-      shouldShowBanner: true,
-      shouldShowList: true,
-    };
-  },
-});
-
-// ---------- Interfaces ----------
 interface Schedule {
-  time: string;
-  days: string[];
+  time: string; // "HH:mm"
+  days: string[]; // ["Monday", ...]
+  _id?: string;
 }
 
 interface Medication {
@@ -35,67 +22,87 @@ interface Medication {
   dosage?: string;
   frequency?: string;
   schedule?: Schedule[];
+  startDate?: string;
+  instructions?: string;
 }
 
-// ---------- Component ----------
 export default function MedicationCalendar() {
   const [medications, setMedications] = useState<Medication[]>([]);
+  const [submitting, setSubmitting] = useState<string | null>(null);
 
-  // 🔔 Request notification permission & fetch meds on mount
   useEffect(() => {
     registerForPushNotificationsAsync();
     fetchMedications();
   }, []);
 
-  // ---------- Fetch Medications ----------
   const fetchMedications = async () => {
     try {
+      const token = await AsyncStorage.getItem('token');
       const response = await axios.get<Medication[]>(`${API_URL}/api/medications`, {
-        headers: {
-          // Authorization: `Bearer ${token}`, // if using auth
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
-
       setMedications(response.data);
-
-      // Schedule notifications for medications
-      response.data.forEach((med) => {
-        if (med.schedule && med.schedule.length > 0) {
-          med.schedule.forEach((s) => {
-            scheduleNotification(med.name, s.time);
-          });
-        }
-      });
     } catch (error: any) {
-      console.error('Error fetching medications:', error.message);
+      console.error('Error fetching medications:', error?.message);
       Alert.alert('Error', 'Failed to load medication reminders.');
     }
   };
 
-  // ---------- Schedule Notification ----------
-  const scheduleNotification = async (medName: string, time: string) => {
+  const buildTodayDateFromHHmm = (hhmm: string) => {
+    const [h, m] = hhmm.split(':').map(Number);
+    const d = new Date();
+    d.setHours(h, m, 0, 0);
+    return d;
+  };
+
+  const pickScheduledTime = (med: Medication) => {
+    const now = new Date();
+    const dayName = now.toLocaleDateString(undefined, { weekday: 'long' });
+    const todaysTimes =
+      med.schedule
+        ?.filter((s) => s.days?.includes(dayName))
+        ?.map((s) => buildTodayDateFromHHmm(s.time))
+        ?.sort((a, b) => a.getTime() - b.getTime()) || [];
+
+    if (todaysTimes.length === 0) return now;
+
+    const pastOrNow = todaysTimes.filter((t) => t.getTime() <= now.getTime());
+    if (pastOrNow.length) return pastOrNow[pastOrNow.length - 1];
+
+    return todaysTimes[0] ?? now;
+  };
+
+  const logDose = async (med: Medication) => {
     try {
-      const now = new Date();
-      const [hours, minutes] = time.split(':').map(Number);
-      const triggerTime = new Date();
-      triggerTime.setHours(hours, minutes, 0, 0);
+      setSubmitting(med._id);
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        Alert.alert('Error', 'You must be logged in to log a dose.');
+        return;
+      }
 
-      // Skip if already past today
-      if (triggerTime < now) return;
+      const scheduledTime = pickScheduledTime(med);
+      const payload = {
+        medicationId: med._id,  // ✅ change from "medication" to "medicationId"
+        scheduledTime,
+        takenAt: new Date(),
+        status: 'taken',
+        notes: 'Taken on time',
+      };
 
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: '💊 Medication Reminder',
-          body: `It's time to take your ${medName}`,
-        },
-        trigger: {
-          hour: hours,
-          minute: minutes,
-          repeats: false,
-        } as Notifications.NotificationTriggerInput,
+      // ✅ Fixed: Use correct backend route
+      await axios.post(`${API_URL}/api/adherence`, payload, {
+        headers: { Authorization: `Bearer ${token}` },
       });
+
+      Alert.alert('✅ Dose Logged', `Logged a dose for ${med.name}.`, [
+        { text: 'OK', onPress: () => router.push('/(patient)/PatientHome') },
+      ]);
     } catch (error: any) {
-      console.error('Notification scheduling failed:', error.message);
+      console.error('Dose logging failed:', error?.message);
+      Alert.alert('Error', 'Unable to log dose. Please try again.');
+    } finally {
+      setSubmitting(null);
     }
   };
 
@@ -106,58 +113,50 @@ export default function MedicationCalendar() {
       </Text>
 
       <View className="flex items-center flex-col sm:flex-row bg-white dark:bg-gray-900 px-4">
-        {/* ---------- Calendar / Reminder Section ---------- */}
+        {/* ---------- Today / Reminders ---------- */}
         <View className="flex items-center flex-col">
           <View className="bg-gray-200 dark:bg-gray-700 mb-4 p-6 rounded-xl w-11/12 sm:max-w-[600px]">
             <Text className="text-gray-700 dark:text-gray-200 text-center mb-2 font-semibold">
-              Today's Reminders
+              Today&apos;s Medications
             </Text>
 
             <ScrollView className="max-h-60">
               {medications.length === 0 ? (
-                <Text className="text-center text-gray-500">No reminders yet</Text>
+                <Text className="text-center text-gray-500">
+                  No medications found
+                </Text>
               ) : (
                 medications.map((med) => (
                   <View key={med._id} className="mb-3">
                     <Text className="text-gray-800 dark:text-gray-100 font-medium">
-                      {med.name} ({med.dosage})
+                      {med.name} {med.dosage ? `(${med.dosage})` : ''}
                     </Text>
                     {med.schedule?.map((s, i) => (
-                      <Text key={i} className="text-gray-600 dark:text-gray-300 text-sm ml-2">
+                      <Text
+                        key={i}
+                        className="text-gray-600 dark:text-gray-300 text-sm ml-2"
+                      >
                         🕒 {s.time} — {s.days.join(', ')}
                       </Text>
                     ))}
+                    <TouchableOpacity
+                      onPress={() => logDose(med)}
+                      disabled={submitting === med._id}
+                      activeOpacity={0.8}
+                      className={`px-4 py-2 rounded-xl mt-2 w-48 self-center ${
+                        submitting === med._id ? 'bg-gray-400' : 'bg-green-600'
+                      }`}
+                    >
+                      <Text className="text-white text-center font-semibold">
+                        {submitting === med._id ? 'Logging...' : 'Log Dose'}
+                      </Text>
+                    </TouchableOpacity>
                   </View>
                 ))
               )}
             </ScrollView>
           </View>
 
-          {/* Test Notification Button */}
-          <TouchableOpacity
-            onPress={async () => {
-              // Use the first medication name if available, otherwise fall back to a generic label
-              const testName = medications[0]?.name ?? 'medication';
-              await Notifications.scheduleNotificationAsync({
-                content: {
-                  title: "💊 Medication Reminder",
-                  body: `It's time to take your ${testName}`,
-                },
-                // Schedule as a short time-interval trigger for testing
-                trigger: {
-                  seconds: 1,
-                } as Notifications.NotificationTriggerInput,
-              });
-            }}
-            activeOpacity={0.8}
-            className="bg-green-500 px-6 py-3 rounded-xl w-11/12 sm:max-w-[300px] mt-2"
-          >
-            <Text className="text-white text-lg font-semibold text-center">
-              Send Test Reminder
-            </Text>
-          </TouchableOpacity>
-
-          {/* Edit Medication Button */}
           <TouchableOpacity
             onPress={() => router.push('/(patient)/EditMedication')}
             activeOpacity={0.8}
@@ -169,10 +168,9 @@ export default function MedicationCalendar() {
           </TouchableOpacity>
         </View>
 
-        {/* Spacer */}
         <View className="py-4 sm:py-0" />
 
-        {/* ---------- Medication List Section ---------- */}
+        {/* ---------- Medication List ---------- */}
         <View className="flex items-center flex-col">
           <View className="bg-gray-200 dark:bg-gray-700 mb-4 p-6 rounded-xl w-11/12 sm:max-w-[600px]">
             <Text className="text-gray-700 dark:text-gray-200 text-center mb-2 font-semibold">
@@ -181,12 +179,14 @@ export default function MedicationCalendar() {
 
             <ScrollView className="max-h-60">
               {medications.length === 0 ? (
-                <Text className="text-center text-gray-500">No medications added</Text>
+                <Text className="text-center text-gray-500">
+                  No medications added
+                </Text>
               ) : (
                 medications.map((med) => (
                   <View key={med._id} className="mb-2">
                     <Text className="text-gray-800 dark:text-gray-100 font-medium">
-                      {med.name} — {med.dosage}
+                      {med.name} {med.dosage ? `— ${med.dosage}` : ''}
                     </Text>
                     <Text className="text-gray-600 dark:text-gray-300 text-sm">
                       Frequency: {med.frequency || 'N/A'}
@@ -197,7 +197,6 @@ export default function MedicationCalendar() {
             </ScrollView>
           </View>
 
-          {/* Back Button */}
           <TouchableOpacity
             onPress={() => router.push('/(patient)/PatientHome')}
             activeOpacity={0.8}
