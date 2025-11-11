@@ -10,27 +10,29 @@ import {
   useColorScheme as rnUseColorScheme,
   Platform,
   StatusBar,
+  Appearance,
 } from 'react-native';
 import 'react-native-reanimated';
 import '@/global.css';
 
 import ThemeToggle from '@/components/ThemeToggle';
 
-// ✅ Optional: import for Android navigation bar color control
+// ✅ Android system bar customization
 import * as SystemUI from 'expo-system-ui';
 import * as NavigationBar from 'expo-navigation-bar';
 
+// ✅ Optional persistence
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 // ✅ Global notification handler
 Notifications.setNotificationHandler({
-  handleNotification: async (notification) => {
-    return {
-      shouldShowAlert: true,
-      shouldPlaySound: true,
-      shouldSetBadge: true,
-      shouldShowBanner: true,
-      shouldShowList: true,
-    };
-  },
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
 });
 
 export { ErrorBoundary } from 'expo-router';
@@ -53,9 +55,7 @@ export default function RootLayout() {
   }, [error]);
 
   useEffect(() => {
-    if (loaded) {
-      SplashScreen.hideAsync();
-    }
+    if (loaded) SplashScreen.hideAsync();
   }, [loaded]);
 
   if (!loaded) return null;
@@ -67,30 +67,41 @@ function RootLayoutNav() {
   const systemScheme = rnUseColorScheme();
   const [manualTheme, setManualTheme] = useState<'light' | 'dark' | null>(null);
 
+  // ✅ Load persisted theme
+  useEffect(() => {
+    (async () => {
+      const stored = await AsyncStorage.getItem('theme');
+      if (stored) setManualTheme(stored as 'light' | 'dark');
+    })();
+  }, []);
+
   const handleThemeChange = (newTheme: 'light' | 'dark') => {
     setManualTheme(newTheme);
+    AsyncStorage.setItem('theme', newTheme);
   };
 
   const effectiveTheme = manualTheme || systemScheme || 'light';
   const isDark = effectiveTheme === 'dark';
 
-  // ✅ Apply web theme logic
+  // ✅ Sync dark mode for NativeWind + Web
   useEffect(() => {
+    // 🔹 Force NativeWind to apply correct theme (v4.2+)
+    Appearance.setColorScheme?.(effectiveTheme as 'light' | 'dark');
+
+    // 🔹 Web DOM sync
     if (Platform.OS === 'web') {
       const root = document.documentElement;
       root.setAttribute('data-theme', effectiveTheme);
-      root.classList.toggle('dark', isDark);
+      root.classList.toggle('dark', effectiveTheme === 'dark');
     }
   }, [effectiveTheme]);
 
-  // ✅ Apply Android/iOS system UI theme effects
+  // ✅ Apply system UI theme effects for mobile
   useEffect(() => {
     if (Platform.OS !== 'web') {
-      // Update status bar for iOS and Android
       StatusBar.setBarStyle(isDark ? 'light-content' : 'dark-content', true);
 
       if (Platform.OS === 'android') {
-        // Update navigation + system bar colors for Android
         SystemUI.setBackgroundColorAsync(isDark ? '#0d1117' : '#ffffff');
         NavigationBar.setBackgroundColorAsync(isDark ? '#0d1117' : '#ffffff');
         NavigationBar.setButtonStyleAsync(isDark ? 'light' : 'dark');
