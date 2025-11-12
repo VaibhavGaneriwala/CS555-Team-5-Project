@@ -7,8 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { registerForPushNotificationsAsync } from '../utils/notifications';
 
-const API_URL =
-  Constants.expoConfig?.extra?.API_URL ?? 'http://localhost:3000';
+const API_URL = Constants.expoConfig?.extra?.API_URL ?? 'http://localhost:3000';
 
 interface Schedule {
   time: string; // "HH:mm"
@@ -43,11 +42,13 @@ export default function MedicationCalendar() {
       });
       setMedications(response.data);
     } catch (error: any) {
-      console.error('Error fetching medications:', error?.message);
+      // console.error('Error fetching medications:', error?.message);
       Alert.alert('Error', 'Failed to load medication reminders.');
     }
   };
 
+  // Takes string value from database stored as hour and minute and converts it into
+  // a usable Date() format
   const buildTodayDateFromHHmm = (hhmm: string) => {
     const [h, m] = hhmm.split(':').map(Number);
     const d = new Date();
@@ -83,14 +84,14 @@ export default function MedicationCalendar() {
 
       const scheduledTime = pickScheduledTime(med);
       const payload = {
-        medicationId: med._id,  // ✅ change from "medication" to "medicationId"
+        medicationId: med._id,
         scheduledTime,
         takenAt: new Date(),
         status: 'taken',
         notes: 'Taken on time',
       };
 
-      // ✅ Fixed: Use correct backend route
+      // Use backend route
       await axios.post(`${API_URL}/api/adherence`, payload, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -115,7 +116,10 @@ export default function MedicationCalendar() {
       <View className="flex items-center flex-col sm:flex-row bg-white dark:bg-gray-900 px-4">
         {/* ---------- Today / Reminders ---------- */}
         <View className="flex items-center flex-col">
-          <View className="bg-gray-200 dark:bg-gray-700 mb-4 p-6 rounded-xl w-11/12 sm:max-w-[600px]">
+          <View 
+            className="bg-gray-200 dark:bg-gray-700 mb-4 p-6 rounded-xl w-11/12 
+            sm:max-w-[600px]"
+          >
             <Text className="text-gray-700 dark:text-gray-200 text-center mb-2 font-semibold">
               Today&apos;s Medications
             </Text>
@@ -172,7 +176,10 @@ export default function MedicationCalendar() {
 
         {/* ---------- Medication List ---------- */}
         <View className="flex items-center flex-col">
-          <View className="bg-gray-200 dark:bg-gray-700 mb-4 p-6 rounded-xl w-11/12 sm:max-w-[600px]">
+          <View 
+            className="bg-gray-200 dark:bg-gray-700 mb-4 p-6 rounded-xl
+            w-11/12 sm:max-w-[600px]"
+          >
             <Text className="text-gray-700 dark:text-gray-200 text-center mb-2 font-semibold">
               Medication List
             </Text>

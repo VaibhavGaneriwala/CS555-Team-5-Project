@@ -16,7 +16,8 @@ exports[`renders PatientHome correctly 1`] = `
       className="flex items-center flex-col"
     >
       <View
-        className="bg-gray-200 dark:bg-gray-700 mb-4 p-6 rounded-xl w-11/12 sm:max-w-[600px]"
+        className="bg-gray-200 dark:bg-gray-700 mb-4 p-6 rounded-xl
+ w-11/12 sm:max-w-[600px]"
       >
         <Text
           className="text-gray-700 dark:text-gray-200 text-center"
@@ -112,7 +113,8 @@ exports[`renders PatientHome correctly 1`] = `
       className="flex items-center flex-col"
     >
       <View
-        className="bg-gray-200 dark:bg-gray-700 mb-4 p-6 rounded-xl w-11/12 sm:max-w-[600px]"
+        className="bg-gray-200 dark:bg-gray-700 mb-4 p-6 rounded-xl
+ w-11/12 sm:max-w-[600px]"
       >
         <Text
           className="text-gray-700 dark:text-gray-200 text-center"

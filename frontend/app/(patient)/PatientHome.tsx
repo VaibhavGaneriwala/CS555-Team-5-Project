@@ -11,8 +11,7 @@ import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 
-const API_URL =
-  Constants.expoConfig?.extra?.API_URL ?? 'http://localhost:3000';
+const API_URL = Constants.expoConfig?.extra?.API_URL ?? 'http://localhost:3000';
 
 // ---------------- Types ----------------
 interface PopulatedMedication {
@@ -176,7 +175,6 @@ export default function PatientHome() {
     setError(null);
   };
 
-  // ✅ Pure resolver — no state updates here
   const resolveMedDisplay = (medRef: string | PopulatedMedication) => {
     let name = 'Unknown Medication';
     let dosage = 'N/A';
@@ -234,7 +232,10 @@ export default function PatientHome() {
       <View className="flex items-center flex-col sm:flex-row bg-white dark:bg-gray-900 px-4">
         {/* ---------- Left Column ---------- */}
         <View className="flex items-center flex-col">
-          <View className="bg-gray-200 dark:bg-gray-700 mb-4 p-6 rounded-xl w-11/12 sm:max-w-[600px]">
+          <View
+            className="bg-gray-200 dark:bg-gray-700 mb-4 p-6 rounded-xl
+            w-11/12 sm:max-w-[600px]"
+          >
             <Text className="text-gray-700 dark:text-gray-200 text-center">
               Patient Overview Placeholder
             </Text>
@@ -267,7 +268,10 @@ export default function PatientHome() {
           <Modal visible={showLogs} animationType="slide" transparent>
             <View className="flex-1 justify-center items-center bg-black/50">
               <View className="bg-white dark:bg-gray-800 rounded-xl p-6 w-11/12 max-h-[80%]">
-                <Text className="text-xl font-bold mb-4 text-gray-800 dark:text-white text-center">
+                <Text 
+                  className="text-xl font-bold mb-4
+                  text-gray-800 dark:text-white text-center"
+                >
                   Dose Logs (Last 7 Days)
                 </Text>
 
@@ -323,7 +327,10 @@ export default function PatientHome() {
 
         {/* ---------- Right Column ---------- */}
         <View className="flex items-center flex-col">
-          <View className="bg-gray-200 dark:bg-gray-700 mb-4 p-6 rounded-xl w-11/12 sm:max-w-[600px]">
+          <View
+            className="bg-gray-200 dark:bg-gray-700 mb-4 p-6 rounded-xl
+            w-11/12 sm:max-w-[600px]"
+          >
             <Text className="text-gray-700 dark:text-gray-200 text-center">
               Provider Overview Placeholder
             </Text>
