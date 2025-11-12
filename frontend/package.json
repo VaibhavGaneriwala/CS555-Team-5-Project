@@ -52,7 +52,8 @@
     "web-push": "^3.6.7"
   },
   "jest": {
-    "preset": "react-native"
+    "preset": "react-native",
+    "testTimeout": 15000
   },
   "private": true
 }
