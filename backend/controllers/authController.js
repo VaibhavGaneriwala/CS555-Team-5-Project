@@ -94,9 +94,14 @@ exports.getMe = async (req, res) => {
         }
         // Return full name and email and role
         res.status(200).json({
-            name: `${user.firstName} ${user.lastName}`,
+            firstName: user.firstName,
+            lastName: user.lastName,
             email: user.email,
-            role: user.role
+            role: user.role,
+            phoneNumber: user.phoneNumber ?? null,
+            dateOfBirth: user.dateOfBirth ?? null,
+            gender: user.gender ?? null,
+            address: user.address ?? null
         });
     } catch (error) {
         console.error(error);
