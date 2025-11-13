@@ -266,9 +266,9 @@ export default function PatientHome() {
         Patient Dashboard
       </Text>
 
-      <View className="flex items-start flex-col sm:flex-row gap-6 w-full max-w-6xl">
+      <View className="flex justify-between items-center sm:items-start flex-col sm:flex-row gap-6 w-full max-w-6xl">
         {/* ---------- Left Section: Patient Overview ---------- */}
-        <View className="flex-1 items-center">
+        <View className="flex items-center">
           <View className="bg-gray-100 dark:bg-gray-800 mb-6 p-8 rounded-2xl shadow-md border border-gray-300 dark:border-gray-600 w-full">
             {patient ? (
               <View>
@@ -328,7 +328,7 @@ export default function PatientHome() {
         </View>
 
         {/* ---------- Right Column (Provider Overview) ---------- */}
-        <View className="flex-1 items-center">
+        <View className="flex items-center">
           <View className="bg-gray-100 dark:bg-gray-800 mb-6 p-8 rounded-2xl shadow-md border border-gray-300 dark:border-gray-600 w-full">
             <Text className="text-gray-700 dark:text-gray-200 text-center">Provider Overview Placeholder</Text>
           </View>
