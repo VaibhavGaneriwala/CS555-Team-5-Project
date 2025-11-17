@@ -15,6 +15,10 @@ export default {
     },
     ios: {
       supportsTablet: true,
+      bundleIdentifier: "com.danielstorms.medtracker",
+        "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     android: {
       adaptiveIcon: {
@@ -23,6 +27,7 @@ export default {
       },
       edgeToEdgeEnabled: true,
       predictiveBackGestureEnabled: false,
+      "package": "com.medtracker.frontend"
     },
     web: {
       bundler: "metro",
@@ -35,6 +40,9 @@ export default {
     },
     extra: {
       API_URL: process.env.EXPO_PUBLIC_API_URL,
+      "eas": {
+        "projectId": "85f31d38-6202-4e49-a8f3-dd19c3170fe8"
+      }
     },
   },
 };
