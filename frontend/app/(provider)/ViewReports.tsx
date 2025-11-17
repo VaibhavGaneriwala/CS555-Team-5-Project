@@ -13,10 +13,13 @@ import Constants from 'expo-constants';
 import { router, useLocalSearchParams } from 'expo-router';
 import { LineChart, BarChart } from 'react-native-chart-kit';
 
-const API_URL =
-  Constants.expoConfig?.extra?.API_URL ?? 'http://10.156.155.13:3000';
+const API_URL = Constants.expoConfig?.extra?.API_URL ?? 'http://localhost:3000';
 
 const screenWidth = Dimensions.get('window').width;
+
+/* ======================================================
+    INTERFACES
+====================================================== */
 
 interface Patient {
   _id: string;
@@ -24,11 +27,11 @@ interface Patient {
   email: string;
   gender: string;
   dateOfBirth: string;
-  adherence: string | number;
+  adherence?: string | number;
 }
 
 interface DailyPoint {
-  date: string; // YYYY-MM-DD
+  date: string;
   taken: number;
   missed: number;
   pct: number;
@@ -43,22 +46,67 @@ interface MedPoint {
 interface WeeklyPoint {
   isoYear: number;
   isoWeek: number;
-  week: string; // e.g., 2025-W1
+  week: string;   // e.g. "2025-W1"
   pct: number;
 }
 
 interface TrendResponse {
   patient: {
     id: string;
-    name: string;
-    email: string;
+    name: string | undefined;
+    email?: string;
   };
   daily: DailyPoint[];
   medications: MedPoint[];
   weeklyAverage: WeeklyPoint[];
 }
 
-// Helper to build ISO range
+interface AdherenceLogEntry {
+  _id: string;
+  status: 'taken' | 'missed' | 'skipped' | 'pending';
+  scheduledTime: string;
+  takenAt?: string | null;
+  notes?: string;
+  medication?: {
+    _id: string;
+    name: string;
+    dosage?: string;
+  };
+  patient?: {
+    _id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
+}
+
+/* ======================================================
+    ISO WEEK CALCULATOR
+====================================================== */
+
+function getISOWeek(date: Date) {
+  const tmp = new Date(date.getTime());
+  tmp.setHours(0, 0, 0, 0);
+
+  // Thursday determines the ISO week
+  tmp.setDate(tmp.getDate() + 3 - ((tmp.getDay() + 6) % 7));
+
+  const week1 = new Date(tmp.getFullYear(), 0, 4);
+
+  const isoWeek = Math.round(
+    ((tmp.getTime() - week1.getTime()) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) / 7 + 1
+  );
+
+  return {
+    isoYear: tmp.getFullYear(),
+    isoWeek,
+  };
+}
+
+/* ======================================================
+    DATE RANGE HELPERS
+====================================================== */
+
 const makeRange = (days: number) => {
   const end = new Date();
   const start = new Date();
@@ -68,10 +116,12 @@ const makeRange = (days: number) => {
 
 const toISO = (d: Date) => d.toISOString();
 
+/* ======================================================
+    COMPONENT
+====================================================== */
+
 export default function ViewReports() {
-  const { patientId: initialPatientId } = useLocalSearchParams<{
-    patientId?: string;
-  }>();
+  const { patientId: initialPatientId } = useLocalSearchParams<{ patientId?: string }>();
 
   const [token, setToken] = useState<string | null>(null);
   const [patients, setPatients] = useState<Patient[]>([]);
@@ -79,19 +129,20 @@ export default function ViewReports() {
     initialPatientId ?? null
   );
 
-  const [rangeLabel, setRangeLabel] = useState<'7d' | '14d' | '30d' | '90d'>(
-    '30d'
-  );
+  const [rangeLabel, setRangeLabel] =
+    useState<'7d' | '14d' | '30d' | '90d'>('30d');
   const [dateRange, setDateRange] = useState(() => makeRange(30));
 
   const [trendData, setTrendData] = useState<TrendResponse | null>(null);
   const [alerts, setAlerts] = useState<string[]>([]);
-
   const [loadingPatients, setLoadingPatients] = useState(true);
   const [loadingTrends, setLoadingTrends] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Load token
+  /* ======================================================
+      LOAD TOKEN
+  ====================================================== */
+
   useEffect(() => {
     const load = async () => {
       const t = await AsyncStorage.getItem('token');
@@ -100,7 +151,10 @@ export default function ViewReports() {
     load();
   }, []);
 
-  // Fetch assigned patients
+  /* ======================================================
+      FETCH PROVIDER PATIENTS
+  ====================================================== */
+
   useEffect(() => {
     if (!token) return;
 
@@ -108,6 +162,8 @@ export default function ViewReports() {
       try {
         setLoadingPatients(true);
         setError(null);
+
+        // console.log("=== FETCHING PATIENT LIST ===");
 
         const res = await fetch(`${API_URL}/api/provider/patients`, {
           headers: {
@@ -135,6 +191,9 @@ export default function ViewReports() {
             setSelectedPatientId(pts[0]._id);
           }
         }
+
+        // console.log("Patients Loaded:", pts);
+
       } catch (err) {
         console.error('Error fetching patients', err);
         setError('Unable to connect to server.');
@@ -146,16 +205,20 @@ export default function ViewReports() {
     fetchPatients();
   }, [token]);
 
-  // Compute alerts based on returned data
+  /* ======================================================
+      ALERT GENERATION
+  ====================================================== */
+
   const computeAlerts = (data: TrendResponse | null): string[] => {
     if (!data) return [];
 
     const a: string[] = [];
 
-    // --- Sudden daily drops ---
-    const dailySorted = [...(data.daily || [])].sort((a, b) =>
+    // DAILY DROPS
+    const dailySorted = [...data.daily].sort((a, b) =>
       a.date.localeCompare(b.date)
     );
+
     for (let i = 1; i < dailySorted.length; i++) {
       const prev = dailySorted[i - 1];
       const curr = dailySorted[i];
@@ -167,7 +230,7 @@ export default function ViewReports() {
       }
     }
 
-    // --- Missed-dose spikes ---
+    // MISSED DOSE SPIKES
     for (let i = 0; i < dailySorted.length; i++) {
       const d = dailySorted[i];
       const prevMissed = i > 0 ? dailySorted[i - 1].missed : 0;
@@ -182,17 +245,10 @@ export default function ViewReports() {
       }
     }
 
-    // --- 20% weekly trend decline ---
-    const weeklySorted = [...(data.weeklyAverage || [])].sort((a, b) => {
-      // Parse "YYYY-WN"
-      const [ya, wa] = a.week.split('-W');
-      const [yb, wb] = b.week.split('-W');
-      const yaNum = parseInt(ya, 10);
-      const ybNum = parseInt(yb, 10);
-      const waNum = parseInt(wa || '0', 10);
-      const wbNum = parseInt(wb || '0', 10);
-      if (yaNum !== ybNum) return yaNum - ybNum;
-      return waNum - wbNum;
+    // WEEKLY DECLINE
+    const weeklySorted = [...data.weeklyAverage].sort((a, b) => {
+      if (a.isoYear !== b.isoYear) return a.isoYear - b.isoYear;
+      return a.isoWeek - b.isoWeek;
     });
 
     for (let i = 1; i < weeklySorted.length; i++) {
@@ -209,7 +265,10 @@ export default function ViewReports() {
     return a;
   };
 
-  // Fetch adherence trends whenever patient or date range changes
+  /* ======================================================
+      FETCH ADHERENCE LOGS + BUILD TRENDS
+  ====================================================== */
+
   const fetchTrends = async () => {
     if (!token || !selectedPatientId) return;
 
@@ -217,49 +276,180 @@ export default function ViewReports() {
       setLoadingTrends(true);
       setError(null);
 
-      const url = `${API_URL}/api/provider/adherence-trends?patientId=${selectedPatientId}&startDate=${encodeURIComponent(
-        toISO(dateRange.start)
-      )}&endDate=${encodeURIComponent(toISO(dateRange.end))}`;
+      // console.log("=== FETCHING ADHERENCE LOGS ===");
+      // console.log("Patient ID:", selectedPatientId);
+      // console.log("Start Date:", dateRange.start);
+      // console.log("End Date:", dateRange.end);
+
+      const url = `${API_URL}/api/adherence?patientId=${selectedPatientId}&startDate=${encodeURIComponent(toISO(dateRange.start))}&endDate=${encodeURIComponent(toISO(dateRange.end))}`;
+
+      // console.log("Request URL:", url);
 
       const res = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
-
-      const data = await res.json();
+        
+      const raw = await res.json();
+      // console.log("RAW adherence response:", raw);
 
       if (!res.ok) {
-        setError(data.message || 'Failed to fetch adherence trends.');
-        setTrendData(null);
-        setAlerts([]);
+        setError(raw.message || "Failed to fetch adherence logs.");
+        // console.log("Failed to fetch adherence logs.")
         return;
       }
 
-      setTrendData(data);
-      setAlerts(computeAlerts(data));
+      if (!Array.isArray(raw)) {
+        console.error("❌ Expected an array but got:", raw);
+        setError("Server returned an invalid adherence payload.");
+        return;
+      }
+
+      const logs: AdherenceLogEntry[] = raw;
+      // console.log("Raw adherence logs received:", logs);
+      // console.log("RAW adherence response:", raw);
+
+      if (!res.ok) {
+        setError("Failed to fetch adherence logs.");
+        return;
+      }
+
+      /* -------------------------------------
+          DAILY ADHERENCE
+      -------------------------------------- */
+      const dailyMap: Record<string, { taken: number; missed: number }> = {};
+
+      logs.forEach((log) => {
+        const day = log.scheduledTime.slice(0, 10);
+
+        if (!dailyMap[day]) dailyMap[day] = { taken: 0, missed: 0 };
+
+        if (log.status === "taken") dailyMap[day].taken++;
+        if (log.status === "missed") dailyMap[day].missed++;
+      });
+
+      const daily = Object.entries(dailyMap).map(([date, d]) => {
+        const total = d.taken + d.missed;
+        const pct = total > 0 ? Math.round((d.taken / total) * 100) : 0;
+
+        return { date, taken: d.taken, missed: d.missed, pct };
+      });
+
+      // console.log("Computed DAILY adherence:", daily);
+
+      /* -------------------------------------
+          MEDICATION ADHERENCE
+      -------------------------------------- */
+      const medMap: Record<string, { name: string; taken: number; total: number }> = {};
+
+      logs.forEach((log) => {
+        if (!log.medication) return;
+
+        const id = log.medication._id;
+        const name = log.medication.name;
+
+        if (!medMap[id]) {
+          medMap[id] = { name, taken: 0, total: 0 };
+        }
+
+        if (log.status === "taken") medMap[id].taken++;
+        if (["taken", "missed"].includes(log.status)) medMap[id].total++;
+      });
+
+      const medications = Object.entries(medMap).map(([id, m]) => ({
+        medicationId: id,
+        name: m.name,
+        pct: m.total > 0 ? Math.round((m.taken / m.total) * 100) : 0,
+      }));
+
+      // console.log("Computed MEDICATION adherence:", medications);
+
+      /* -------------------------------------
+          WEEKLY ADHERENCE (ISO)
+      -------------------------------------- */
+      const weeklyMap: Record<string, {
+        taken: number;
+        total: number;
+        isoYear: number;
+        isoWeek: number;
+      }> = {};
+
+      logs.forEach((log) => {
+        const date = new Date(log.scheduledTime);
+        const { isoYear, isoWeek } = getISOWeek(date);
+        const weekKey = `${isoYear}-W${isoWeek}`;
+
+        if (!weeklyMap[weekKey]) {
+          weeklyMap[weekKey] = { taken: 0, total: 0, isoYear, isoWeek };
+        }
+
+        if (log.status === "taken") weeklyMap[weekKey].taken++;
+        if (["taken", "missed"].includes(log.status)) weeklyMap[weekKey].total++;
+      });
+
+      const weeklyAverage: WeeklyPoint[] = Object.entries(weeklyMap).map(
+        ([week, w]) => ({
+          isoYear: w.isoYear,
+          isoWeek: w.isoWeek,
+          week,
+          pct: w.total > 0 ? Math.round((w.taken / w.total) * 100) : 0,
+        })
+      );
+
+      // console.log("Computed WEEKLY adherence:", weeklyAverage);
+
+      /* -------------------------------------
+          FINAL TREND RESPONSE
+      -------------------------------------- */
+      const result: TrendResponse = {
+        patient: {
+          id: selectedPatientId,
+          name: patients.find((p) => p._id === selectedPatientId)?.name,
+        },
+        daily,
+        medications,
+        weeklyAverage,
+      };
+
+      // console.log("Final TrendResponse:", result);
+
+      setTrendData(result);
+      setAlerts(computeAlerts(result));
+
     } catch (err) {
-      console.error('Error fetching trends', err);
-      setError('Unable to connect to server.');
-      setTrendData(null);
-      setAlerts([]);
+      console.error("Error fetching adherence trends:", err);
+      setError("Unable to connect to server.");
     } finally {
       setLoadingTrends(false);
     }
   };
 
-  // Trigger trend load when filters change
+  /* ======================================================
+      REFRESH ON DATE CHANGE OR PATIENT CHANGE
+  ====================================================== */
+
   useEffect(() => {
     if (!selectedPatientId || !token) return;
     fetchTrends();
-  }, [selectedPatientId, dateRange.start.getTime(), dateRange.end.getTime(), token]);
+  }, [
+    selectedPatientId,
+    dateRange.start.getTime(),
+    dateRange.end.getTime(),
+    token
+  ]);
 
-  // Change date range quick filter
+  /* ======================================================
+      UTILITY: CHANGE DATE RANGE BUTTON
+  ====================================================== */
+
   const handleRangeChange = (label: '7d' | '14d' | '30d' | '90d') => {
     setRangeLabel(label);
     const days = label === '7d' ? 7 : label === '14d' ? 14 : label === '90d' ? 90 : 30;
     setDateRange(makeRange(days));
   };
+
+  /* ======================================================
+      CURRENT PATIENT NAME
+  ====================================================== */
 
   const currentPatientName = useMemo(() => {
     if (!trendData?.patient?.name && selectedPatientId && patients.length > 0) {
@@ -269,72 +459,63 @@ export default function ViewReports() {
     return trendData?.patient?.name ?? 'Selected Patient';
   }, [trendData, selectedPatientId, patients]);
 
+  /* ======================================================
+      DAILY CHART
+  ====================================================== */
+
   const dailyChart = useMemo(() => {
     if (!trendData || !trendData.daily || trendData.daily.length === 0) return null;
-    const labels = trendData.daily.map((d) => d.date.slice(5)); // show MM-DD
-    const values = trendData.daily.map((d) => d.pct);
 
     return {
-      labels,
-      datasets: [
-        {
-          data: values,
-        },
-      ],
+      labels: trendData.daily.map((d) => d.date.slice(5)),
+      datasets: [{ data: trendData.daily.map((d) => d.pct) }],
     };
   }, [trendData]);
+
+  /* ======================================================
+      MEDICATION CHART
+  ====================================================== */
 
   const medChart = useMemo(() => {
     if (!trendData || !trendData.medications || trendData.medications.length === 0) {
       return null;
     }
-    const labels = trendData.medications.map((m) =>
-      m.name.length > 8 ? `${m.name.slice(0, 7)}…` : m.name
-    );
-    const values = trendData.medications.map((m) => m.pct);
 
     return {
-      labels,
-      datasets: [
-        {
-          data: values,
-        },
-      ],
+      labels: trendData.medications.map((m) =>
+        m.name.length > 8 ? `${m.name.slice(0, 7)}…` : m.name
+      ),
+      datasets: [{ data: trendData.medications.map((m) => m.pct) }],
     };
   }, [trendData]);
 
-  // ------------------- RENDER -------------------
+  /* ======================================================
+      RENDER
+  ====================================================== */
+
   if (!token) {
     return (
-      <View className="flex-1 items-center justify-center bg-white dark:bg-gray-900">
+      <View className="flex-1 items-center justify-center bg-white">
         <ActivityIndicator size="large" />
-        <Text className="mt-3 text-gray-600 dark:text-gray-300">
-          Loading authentication...
-        </Text>
+        <Text className="mt-3 text-gray-600">Loading authentication...</Text>
       </View>
     );
   }
 
   if (loadingPatients) {
     return (
-      <View className="flex-1 items-center justify-center bg-white dark:bg-gray-900">
+      <View className="flex-1 items-center justify-center bg-white">
         <ActivityIndicator size="large" color="#2563eb" />
-        <Text className="mt-3 text-gray-600 dark:text-gray-300">
-          Loading patients...
-        </Text>
+        <Text className="mt-3 text-gray-600">Loading patients...</Text>
       </View>
     );
   }
 
   if (!loadingPatients && patients.length === 0) {
     return (
-      <View className="flex-1 items-center justify-center bg-white dark:bg-gray-900 px-4">
-        <Text className="text-2xl font-bold text-gray-800 dark:text-white mb-4 text-center">
+      <View className="flex-1 items-center justify-center bg-white px-4">
+        <Text className="text-2xl font-bold text-gray-800 mb-4 text-center">
           No assigned patients
-        </Text>
-        <Text className="text-gray-600 dark:text-gray-300 mb-6 text-center">
-          You don&apos;t have any assigned patients yet. Assign patients first to
-          view adherence reports.
         </Text>
         <TouchableOpacity
           onPress={() => router.push('/(provider)/ViewPatients')}
@@ -349,19 +530,17 @@ export default function ViewReports() {
   }
 
   return (
-    <View className="flex-1 bg-white dark:bg-gray-900 pt-10 pb-4 px-4">
-      <Text className="text-3xl font-bold text-center mb-4 text-gray-800 dark:text-white">
+    <View className="flex-1 bg-white pt-10 pb-4 px-4">
+      <Text className="text-3xl font-bold text-center mb-4 text-gray-800">
         Adherence Reports
       </Text>
-      <Text className="text-center text-gray-500 dark:text-gray-300 mb-4">
-        Spot adherence issues quickly with trends and alerts.
-      </Text>
 
-      {/* Filters */}
+      {/* PATIENT FILTER */}
       <View className="mb-4">
-        <Text className="text-gray-800 dark:text-gray-200 font-semibold mb-2">
+        <Text className="text-gray-800 font-semibold mb-2">
           Patient
         </Text>
+
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           {patients.map((p) => (
             <TouchableOpacity
@@ -370,23 +549,22 @@ export default function ViewReports() {
               className={`px-3 py-2 rounded-full mr-2 mb-2 border ${
                 selectedPatientId === p._id
                   ? 'bg-blue-500 border-blue-600'
-                  : 'bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-700'
+                  : 'bg-gray-100 border-gray-300'
               }`}
             >
-              <Text
-                className={`text-sm font-semibold ${
-                  selectedPatientId === p._id
-                    ? 'text-white'
-                    : 'text-gray-800 dark:text-gray-200'
-                }`}
-              >
+              <Text className={`text-sm font-semibold ${
+                selectedPatientId === p._id
+                  ? 'text-white'
+                  : 'text-gray-800'
+              }`}>
                 {p.name}
               </Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
 
-        <Text className="text-gray-800 dark:text-gray-200 font-semibold mt-3 mb-2">
+        {/* DATE RANGE FILTER */}
+        <Text className="text-gray-800 font-semibold mt-3 mb-2">
           Date Range
         </Text>
         <View className="flex-row">
@@ -397,52 +575,41 @@ export default function ViewReports() {
               className={`px-3 py-2 rounded-full mr-2 border ${
                 rangeLabel === label
                   ? 'bg-green-500 border-green-600'
-                  : 'bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-700'
+                  : 'bg-gray-100 border-gray-300'
               }`}
             >
-              <Text
-                className={`text-sm font-semibold ${
-                  rangeLabel === label
-                    ? 'text-white'
-                    : 'text-gray-800 dark:text-gray-200'
-                }`}
-              >
+              <Text className={`text-sm font-semibold ${
+                rangeLabel === label ? 'text-white' : 'text-gray-800'
+              }`}>
                 {label.toUpperCase()}
               </Text>
             </TouchableOpacity>
           ))}
         </View>
-        <Text className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+        <Text className="text-xs text-gray-500 mt-1">
           {dateRange.start.toDateString()} – {dateRange.end.toDateString()}
         </Text>
       </View>
 
-      {/* Alerts */}
+      {/* ALERTS */}
       {alerts.length > 0 && (
-        <View className="bg-red-50 dark:bg-red-900/40 border border-red-300 dark:border-red-700 rounded-2xl p-3 mb-4">
-          <Text className="text-red-700 dark:text-red-300 font-semibold mb-1">
+        <View className="bg-red-50 border border-red-300 rounded-2xl p-3 mb-4">
+          <Text className="text-red-700 font-semibold mb-1">
             Alerts detected
           </Text>
           {alerts.map((msg, idx) => (
-            <Text
-              key={idx}
-              className="text-xs text-red-700 dark:text-red-200 mb-1"
-            >
+            <Text key={idx} className="text-xs text-red-700 mb-1">
               • {msg}
             </Text>
           ))}
         </View>
       )}
 
-      {/* Error */}
+      {/* ERROR */}
       {error && (
-        <View className="bg-red-50 dark:bg-red-900/40 border border-red-300 dark:border-red-700 rounded-2xl p-3 mb-4">
-          <Text className="text-red-700 dark:text-red-300 font-semibold mb-1">
-            Error
-          </Text>
-          <Text className="text-xs text-red-700 dark:text-red-200 mb-2">
-            {error}
-          </Text>
+        <View className="bg-red-50 border border-red-300 rounded-2xl p-3 mb-4">
+          <Text className="text-red-700 font-semibold mb-1">Error</Text>
+          <Text className="text-xs text-red-700 mb-2">{error}</Text>
           <TouchableOpacity
             onPress={fetchTrends}
             className="bg-red-500 rounded-xl px-3 py-2 self-start"
@@ -452,16 +619,15 @@ export default function ViewReports() {
         </View>
       )}
 
-      {/* Charts */}
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 32 }}
-      >
+      {/* MAIN SCROLL */}
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
+        
+        {/* DAILY CHART */}
         <View className="mb-4">
-          <Text className="text-lg font-bold text-gray-800 dark:text-gray-100 mb-1">
+          <Text className="text-lg font-bold text-gray-800 mb-1">
             Daily Adherence – {currentPatientName}
           </Text>
-          <Text className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+          <Text className="text-xs text-gray-500 mb-2">
             Line chart of adherence percentage per day.
           </Text>
 
@@ -480,26 +646,24 @@ export default function ViewReports() {
                 backgroundGradientTo: '#ffffff',
                 decimalPlaces: 0,
                 color: (opacity = 1) => `rgba(37, 99, 235, ${opacity})`,
-                labelColor: (opacity = 1) =>
-                  `rgba(55, 65, 81, ${opacity})`,
+                labelColor: (opacity = 1) => `rgba(55, 65, 81, ${opacity})`,
               }}
-              style={{
-                borderRadius: 16,
-              }}
+              style={{ borderRadius: 16 }}
               bezier
             />
           ) : (
-            <Text className="text-gray-500 dark:text-gray-400 text-sm mt-2">
+            <Text className="text-gray-500 text-sm mt-2">
               No daily adherence data in this range.
             </Text>
           )}
         </View>
 
+        {/* MEDICATION CHART */}
         <View className="mb-4">
-          <Text className="text-lg font-bold text-gray-800 dark:text-gray-100 mb-1">
+          <Text className="text-lg font-bold text-gray-800 mb-1">
             Medication-Specific Adherence
           </Text>
-          <Text className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+          <Text className="text-xs text-gray-500 mb-2">
             Bar chart of average adherence by medication.
           </Text>
 
@@ -509,45 +673,42 @@ export default function ViewReports() {
             </View>
           ) : medChart ? (
             <BarChart
-                data={medChart}
-                width={screenWidth - 32}
-                height={220}
-                yAxisSuffix="%"
-                yAxisLabel=""     // ← ADD THIS LINE
-                fromZero
-                chartConfig={{
-                    backgroundGradientFrom: '#ffffff',
-                    backgroundGradientTo: '#ffffff',
-                    decimalPlaces: 0,
-                    color: (opacity = 1) => `rgba(16, 185, 129, ${opacity})`,
-                    labelColor: (opacity = 1) => `rgba(55, 65, 81, ${opacity})`,
-                }}
-                style={{
-                    borderRadius: 16,
-                }}
+              data={medChart}
+              width={screenWidth - 32}
+              height={220}
+              yAxisSuffix="%"
+              yAxisLabel=""
+              fromZero
+              chartConfig={{
+                backgroundGradientFrom: '#ffffff',
+                backgroundGradientTo: '#ffffff',
+                decimalPlaces: 0,
+                color: (opacity = 1) => `rgba(16, 185, 129, ${opacity})`,
+                labelColor: (opacity = 1) => `rgba(55, 65, 81, ${opacity})`,
+              }}
+              style={{ borderRadius: 16 }}
             />
           ) : (
-            <Text className="text-gray-500 dark:text-gray-400 text-sm mt-2">
+            <Text className="text-gray-500 text-sm mt-2">
               No medication adherence data in this range.
             </Text>
           )}
         </View>
 
-        {/* Weekly trend summary list for quick eyeballing */}
-        {trendData && trendData.weeklyAverage && trendData.weeklyAverage.length > 0 && (
-          <View className="mt-2 bg-gray-50 dark:bg-gray-800 rounded-2xl p-4">
-            <Text className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-2">
+        {/* WEEKLY SUMMARY */}
+        {trendData?.weeklyAverage && trendData.weeklyAverage.length > 0 && (
+          <View className="mt-2 bg-gray-50 rounded-2xl p-4">
+            <Text className="text-sm font-semibold text-gray-800 mb-2">
               Weekly Average Adherence
             </Text>
+
             {trendData.weeklyAverage.map((w) => (
               <View
                 key={`${w.isoYear}-${w.isoWeek}`}
                 className="flex-row justify-between mb-1"
               >
-                <Text className="text-xs text-gray-600 dark:text-gray-300">
-                  {w.week}
-                </Text>
-                <Text className="text-xs font-semibold text-gray-800 dark:text-gray-100">
+                <Text className="text-xs text-gray-600">{w.week}</Text>
+                <Text className="text-xs font-semibold text-gray-800">
                   {w.pct}%
                 </Text>
               </View>
@@ -555,7 +716,7 @@ export default function ViewReports() {
           </View>
         )}
 
-        {/* Back button */}
+        {/* BACK BUTTON */}
         <TouchableOpacity
           onPress={() => router.push('/(provider)/ProviderHome')}
           className="bg-blue-500 px-6 py-3 rounded-xl mt-6"
