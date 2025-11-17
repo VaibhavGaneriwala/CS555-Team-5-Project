@@ -1,0 +1,29 @@
+import React from 'react';
+import renderer, { act } from 'react-test-renderer';
+import PatientHome from '../(patient)/PatientHome';
+
+// Mock dependencies
+jest.mock('expo-router', () => ({ router: { push: jest.fn() } }));
+jest.mock('@react-native-async-storage/async-storage', () => ({
+  getItem: jest.fn(() => Promise.resolve('fake-token')),
+}));
+jest.mock('expo-constants', () => ({
+  expoConfig: { extra: { API_URL: 'http://mock-api' } },
+}));
+
+global.fetch = jest.fn(() =>
+  Promise.resolve({
+    ok: true,
+    json: () => Promise.resolve([]),
+  })
+);
+
+it('renders PatientHome correctly', async () => {
+  let tree;
+
+  await act(async () => {
+    tree = renderer.create(<PatientHome />);
+  });
+
+  expect(tree.toJSON()).toMatchSnapshot();
+});

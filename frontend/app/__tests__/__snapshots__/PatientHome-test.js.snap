@@ -1,0 +1,168 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`renders PatientHome correctly 1`] = `
+<View
+  className="flex-1 items-center justify-center bg-white dark:bg-gray-900 px-4"
+>
+  <Text
+    className="text-3xl font-bold mb-8 text-gray-800 dark:text-white"
+  >
+    Patient Dashboard
+  </Text>
+  <View
+    className="flex items-center flex-col sm:flex-row bg-white dark:bg-gray-900 px-4"
+  >
+    <View
+      className="flex items-center flex-col"
+    >
+      <View
+        className="bg-gray-200 dark:bg-gray-700 mb-4 p-6 rounded-xl
+ w-11/12 sm:max-w-[600px]"
+      >
+        <Text
+          className="text-gray-700 dark:text-gray-200 text-center"
+        >
+          Patient Overview Placeholder
+        </Text>
+      </View>
+      <View
+        accessibilityState={
+          {
+            "busy": undefined,
+            "checked": undefined,
+            "disabled": undefined,
+            "expanded": undefined,
+            "selected": undefined,
+          }
+        }
+        accessibilityValue={
+          {
+            "max": undefined,
+            "min": undefined,
+            "now": undefined,
+            "text": undefined,
+          }
+        }
+        accessible={true}
+        collapsable={false}
+        focusable={true}
+        onClick={[Function]}
+        onResponderGrant={[Function]}
+        onResponderMove={[Function]}
+        onResponderRelease={[Function]}
+        onResponderTerminate={[Function]}
+        onResponderTerminationRequest={[Function]}
+        onStartShouldSetResponder={[Function]}
+        style={
+          {
+            "opacity": 1,
+          }
+        }
+      >
+        <Text
+          className="text-white text-lg font-semibold text-center"
+        >
+          Go to Medication Calendar
+        </Text>
+      </View>
+      <View
+        accessibilityState={
+          {
+            "busy": undefined,
+            "checked": undefined,
+            "disabled": false,
+            "expanded": undefined,
+            "selected": undefined,
+          }
+        }
+        accessibilityValue={
+          {
+            "max": undefined,
+            "min": undefined,
+            "now": undefined,
+            "text": undefined,
+          }
+        }
+        accessible={true}
+        collapsable={false}
+        focusable={true}
+        onClick={[Function]}
+        onResponderGrant={[Function]}
+        onResponderMove={[Function]}
+        onResponderRelease={[Function]}
+        onResponderTerminate={[Function]}
+        onResponderTerminationRequest={[Function]}
+        onStartShouldSetResponder={[Function]}
+        style={
+          {
+            "opacity": 1,
+          }
+        }
+      >
+        <Text
+          className="text-white text-lg font-semibold text-center"
+        >
+          View Dose Logs (Last 7 Days)
+        </Text>
+      </View>
+    </View>
+    <View
+      className="py-4 sm:py-0"
+    />
+    <View
+      className="flex items-center flex-col"
+    >
+      <View
+        className="bg-gray-200 dark:bg-gray-700 mb-4 p-6 rounded-xl
+ w-11/12 sm:max-w-[600px]"
+      >
+        <Text
+          className="text-gray-700 dark:text-gray-200 text-center"
+        >
+          Provider Overview Placeholder
+        </Text>
+      </View>
+      <View
+        accessibilityState={
+          {
+            "busy": undefined,
+            "checked": undefined,
+            "disabled": undefined,
+            "expanded": undefined,
+            "selected": undefined,
+          }
+        }
+        accessibilityValue={
+          {
+            "max": undefined,
+            "min": undefined,
+            "now": undefined,
+            "text": undefined,
+          }
+        }
+        accessible={true}
+        collapsable={false}
+        focusable={true}
+        onClick={[Function]}
+        onResponderGrant={[Function]}
+        onResponderMove={[Function]}
+        onResponderRelease={[Function]}
+        onResponderTerminate={[Function]}
+        onResponderTerminationRequest={[Function]}
+        onStartShouldSetResponder={[Function]}
+        style={
+          {
+            "opacity": 1,
+          }
+        }
+      >
+        <Text
+          className="text-white text-lg font-semibold text-center"
+        >
+          Go to View Providers
+        </Text>
+      </View>
+    </View>
+  </View>
+</View>
+`;
