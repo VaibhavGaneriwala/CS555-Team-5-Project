@@ -11,7 +11,9 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 
-const BASE_URL = 'http://10.156.155.13:3000'; // your backend IP
+import Constants from 'expo-constants';
+
+const API_URL = Constants.expoConfig?.extra?.API_URL ?? 'http://10.156.155.13:3000'; // your backend IP
 
 interface Patient {
   _id: string;
@@ -41,7 +43,7 @@ export default function ViewPatients() {
         return;
       }
 
-      const response = await fetch(`${BASE_URL}/api/provider/patients`, {
+      const response = await fetch(`${API_URL}/api/provider/patients`, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -75,7 +77,7 @@ export default function ViewPatients() {
 
     try {
       const token = await AsyncStorage.getItem('token');
-      const response = await fetch(`${BASE_URL}/api/provider/assign`, {
+      const response = await fetch(`${API_URL}/api/provider/assign`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
