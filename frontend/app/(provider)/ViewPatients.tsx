@@ -161,6 +161,21 @@ export default function ViewPatients() {
               <Text className="text-blue-600 dark:text-blue-400 font-semibold mt-1">
                 Adherence: {item.adherence === 'N/A' ? 'N/A' : `${item.adherence}%`}
               </Text>
+
+              <TouchableOpacity
+                onPress={() =>
+                  router.push({
+                    pathname: '/(provider)/ViewReports',
+                    params: { patientId: item._id },
+                  })
+                }
+                activeOpacity={0.8}
+                className="mt-3 bg-green-500 px-4 py-2 rounded-xl self-start"
+              >
+                <Text className="text-white text-sm font-semibold">
+                  View Adherence Trend
+                </Text>
+              </TouchableOpacity>
             </View>
           )}
         />
