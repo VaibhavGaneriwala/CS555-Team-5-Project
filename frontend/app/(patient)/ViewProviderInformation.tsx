@@ -18,14 +18,6 @@ export default function ViewProviderInformation() {
         <Text className="text-gray-700 dark:text-gray-300 mt-2">Email: {email}</Text>
         <Text className="text-gray-700 dark:text-gray-300 mt-1">Phone: {phone || 'N/A'}</Text>
       </View>
-
-      <TouchableOpacity
-        onPress={() => router.push('/(patient)/ViewProviders')}
-        className="bg-blue-500 px-6 py-3 rounded-xl mt-6"
-      >
-        <Text className="text-white text-lg font-semibold text-center">Back to View Providers</Text>
-      </TouchableOpacity>
-
       <TouchableOpacity
         onPress={() => router.push('/(patient)/PatientHome')}
         className="bg-green-500 px-6 py-3 rounded-xl mt-3"
