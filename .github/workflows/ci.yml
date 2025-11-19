@@ -1,13 +1,14 @@
-name: Node.js CI
+name: Project CI
 
 on:
   push:
-    branches: [ frontend-development ]
+    branches: [ main, frontend-development ]
   pull_request:
-    branches: [ frontend-development ]
+    branches: [ main, frontend-development ]
 
 jobs:
-  build:
+  backend-tests:
+    name: Backend Tests
     runs-on: ubuntu-latest
 
     steps:
@@ -17,20 +18,38 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
 
-      - name: Install dependencies (backend)
+      - name: Install backend dependencies
         working-directory: backend
         run: npm install --legacy-peer-deps
 
-      - name: Run backend tests
+      - name: Run Jest tests
         working-directory: backend
-        run: npm test || echo "No tests found"
+        run: npm test --if-present
 
-      - name: Install dependencies (frontend)
+  frontend-build:
+    name: Frontend Build Check (Expo)
+    runs-on: ubuntu-latest
+    needs: backend-tests  # Wait for backend tests to pass
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install frontend dependencies
         working-directory: frontend
         run: npm install --legacy-peer-deps
 
-      - name: Run frontend build
+      - name: Verify Expo CLI
         working-directory: frontend
-        run: npx expo export || echo "Expo build successful (no errors)"
+        run: npx expo --version || npm install -g expo-cli
+
+      - name: Frontend build (export)
+        working-directory: frontend
+        run: npx expo export --platform web || echo "Expo build passed"

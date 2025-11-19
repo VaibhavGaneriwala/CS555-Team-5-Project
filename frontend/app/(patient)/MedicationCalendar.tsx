@@ -6,13 +6,14 @@ import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { registerForPushNotificationsAsync } from '../utils/notifications';
+import TodaysMedicationsCard from '@/components/TodaysMedicationsCard';
+import MedicationListCard from '@/components/MedicationListCard';
 
 const API_URL = Constants.expoConfig?.extra?.API_URL ?? 'http://localhost:3000';
 
 interface Schedule {
-  time: string; // "HH:mm"
-  days: string[]; // ["Monday", ...]
-  _id?: string;
+  time: string;
+  days: string[];
 }
 
 interface Medication {
@@ -41,14 +42,11 @@ export default function MedicationCalendar() {
         headers: { Authorization: `Bearer ${token}` },
       });
       setMedications(response.data);
-    } catch (error: any) {
-      // console.error('Error fetching medications:', error?.message);
+    } catch (error) {
       Alert.alert('Error', 'Failed to load medication reminders.');
     }
   };
 
-  // Takes string value from database stored as hour and minute and converts it into
-  // a usable Date() format
   const buildTodayDateFromHHmm = (hhmm: string) => {
     const [h, m] = hhmm.split(':').map(Number);
     const d = new Date();
@@ -59,9 +57,10 @@ export default function MedicationCalendar() {
   const pickScheduledTime = (med: Medication) => {
     const now = new Date();
     const dayName = now.toLocaleDateString(undefined, { weekday: 'long' });
+
     const todaysTimes =
       med.schedule
-        ?.filter((s) => s.days?.includes(dayName))
+        ?.filter((s) => s.days.includes(dayName))
         ?.map((s) => buildTodayDateFromHHmm(s.time))
         ?.sort((a, b) => a.getTime() - b.getTime()) || [];
 
@@ -83,24 +82,23 @@ export default function MedicationCalendar() {
       }
 
       const scheduledTime = pickScheduledTime(med);
-      const payload = {
-        medicationId: med._id,
-        scheduledTime,
-        takenAt: new Date(),
-        status: 'taken',
-        notes: 'Taken on time',
-      };
 
-      // Use backend route
-      await axios.post(`${API_URL}/api/adherence`, payload, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await axios.post(
+        `${API_URL}/api/adherence`,
+        {
+          medicationId: med._id,
+          scheduledTime,
+          takenAt: new Date(),
+          status: 'taken',
+          notes: 'Taken on time',
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
 
-      Alert.alert('✅ Dose Logged', `Logged a dose for ${med.name}.`, [
+      Alert.alert('Dose Logged', `Logged a dose for ${med.name}.`, [
         { text: 'OK', onPress: () => router.push('/(patient)/PatientHome') },
       ]);
-    } catch (error: any) {
-      console.error('Dose logging failed:', error?.message);
+    } catch (error) {
       Alert.alert('Error', 'Unable to log dose. Please try again.');
     } finally {
       setSubmitting(null);
@@ -109,110 +107,50 @@ export default function MedicationCalendar() {
 
   return (
     <View className="flex-1 items-center justify-center bg-white dark:bg-gray-900 px-4">
+      {/* Page title */}
       <Text className="text-3xl font-bold mb-8 text-gray-800 dark:text-white">
         Medication Calendar
       </Text>
 
-      <View className="flex items-center flex-col sm:flex-row bg-white dark:bg-gray-900 px-4">
-        {/* ---------- Today / Reminders ---------- */}
-        <View className="flex items-center flex-col">
-          <View 
-            className="bg-gray-200 dark:bg-gray-700 mb-4 p-6 rounded-xl w-11/12 
-            sm:max-w-[600px]"
-          >
-            <Text className="text-gray-700 dark:text-gray-200 text-center mb-2 font-semibold">
-              Today&apos;s Medications
-            </Text>
+      {/* Main Centered Container (matches PatientHome) */}
+      <View className="flex justify-center items-center w-full max-w-6xl">
+        <View
+          className="flex justify-center items-center min-[850px]:items-start flex-col min-[850px]:flex-row 
+          gap-6 p-6 rounded-xl bg-gray-100 dark:bg-gray-800 shadow-lg w-full"
+        >
+          {/* ---------- Today's Medications ---------- */}
+          <View className="flex items-center">
+            <TodaysMedicationsCard
+              medications={medications}
+              submitting={submitting}
+              onLogDose={logDose}
+            />
 
-            <ScrollView className="max-h-60">
-              {medications.length === 0 ? (
-                <Text className="text-center text-gray-500">
-                  No medications found
-                </Text>
-              ) : (
-                medications.map((med) => (
-                  <View key={med._id} className="mb-3">
-                    <Text className="text-gray-800 dark:text-gray-100 font-medium">
-                      {med.name} {med.dosage ? `(${med.dosage})` : ''}
-                    </Text>
-                    {med.schedule?.map((s, i) => (
-                      <Text
-                        key={i}
-                        className="text-gray-600 dark:text-gray-300 text-sm ml-2"
-                      >
-                        🕒 {s.time} — {s.days.join(', ')}
-                      </Text>
-                    ))}
-                    <TouchableOpacity
-                      onPress={() => logDose(med)}
-                      disabled={submitting === med._id}
-                      activeOpacity={0.8}
-                      className={`px-4 py-2 rounded-xl mt-2 w-48 self-center ${
-                        submitting === med._id ? 'bg-gray-400' : 'bg-green-600'
-                      }`}
-                    >
-                      <Text className="text-white text-center font-semibold">
-                        {submitting === med._id ? 'Logging...' : 'Log Dose'}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                ))
-              )}
-            </ScrollView>
+            <TouchableOpacity
+              onPress={() => router.push('/(patient)/EditMedication')}
+              activeOpacity={0.8}
+              className="bg-blue-500 px-6 py-3 rounded-xl w-full max-w-[300px]"
+            >
+              <Text className="text-white text-lg font-semibold text-center">
+                Go to Edit Medication
+              </Text>
+            </TouchableOpacity>
           </View>
 
-          <TouchableOpacity
-            onPress={() => router.push('/(patient)/EditMedication')}
-            activeOpacity={0.8}
-            className="bg-blue-500 px-6 py-3 rounded-xl w-11/12 sm:max-w-[300px] mt-3"
-          >
-            <Text className="text-white text-lg font-semibold text-center">
-              Go to Edit Medication
-            </Text>
-          </TouchableOpacity>
-        </View>
+          {/* ---------- Medication List ---------- */}
+          <View className="flex items-center">
+            <MedicationListCard medications={medications} />
 
-        <View className="py-4 sm:py-0" />
-
-        {/* ---------- Medication List ---------- */}
-        <View className="flex items-center flex-col">
-          <View 
-            className="bg-gray-200 dark:bg-gray-700 mb-4 p-6 rounded-xl
-            w-11/12 sm:max-w-[600px]"
-          >
-            <Text className="text-gray-700 dark:text-gray-200 text-center mb-2 font-semibold">
-              Medication List
-            </Text>
-
-            <ScrollView className="max-h-60">
-              {medications.length === 0 ? (
-                <Text className="text-center text-gray-500">
-                  No medications added
-                </Text>
-              ) : (
-                medications.map((med) => (
-                  <View key={med._id} className="mb-2">
-                    <Text className="text-gray-800 dark:text-gray-100 font-medium">
-                      {med.name} {med.dosage ? `— ${med.dosage}` : ''}
-                    </Text>
-                    <Text className="text-gray-600 dark:text-gray-300 text-sm">
-                      Frequency: {med.frequency || 'N/A'}
-                    </Text>
-                  </View>
-                ))
-              )}
-            </ScrollView>
+            <TouchableOpacity
+              onPress={() => router.push('/(patient)/PatientHome')}
+              activeOpacity={0.8}
+              className="bg-blue-500 px-6 py-3 rounded-xl w-full max-w-[300px]"
+            >
+              <Text className="text-white text-lg font-semibold text-center">
+                Back to Patient Home
+              </Text>
+            </TouchableOpacity>
           </View>
-
-          <TouchableOpacity
-            onPress={() => router.push('/(patient)/PatientHome')}
-            activeOpacity={0.8}
-            className="bg-blue-500 px-6 py-3 rounded-xl w-11/12 sm:max-w-[300px]"
-          >
-            <Text className="text-white text-lg font-semibold text-center">
-              Back to Patient Home
-            </Text>
-          </TouchableOpacity>
         </View>
       </View>
     </View>
