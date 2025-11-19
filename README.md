@@ -133,7 +133,7 @@ Medication-Adherence-Tracker/
 ✅ iOS prototype demonstrated with updated patient and provider flows  
 ✅ All backend tests passed (controllers and models)  
 ✅ GitHub Actions CI runs verified  
-✅ Jira board, burnup chart, and velocity report updated  
+✅ Jira board, burnup chart, and velocity report updated 
 
 
 
