@@ -13,7 +13,8 @@ import { router } from 'expo-router';
 
 import Constants from 'expo-constants';
 
-const API_URL = Constants.expoConfig?.extra?.API_URL ?? 'http://10.156.155.13:3000'; // your backend IP
+// const API_URL = Constants.expoConfig?.extra?.API_URL ?? 'http://10.156.155.13:3000'; // your backend IP
+const API_URL = Constants.expoConfig?.extra?.API_URL ?? 'http://localhost:3000';
 
 interface Patient {
   _id: string;

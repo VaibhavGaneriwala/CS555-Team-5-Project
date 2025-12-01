@@ -87,8 +87,6 @@ interface AdherenceLogEntry {
 function getISOWeek(date: Date) {
   const tmp = new Date(date.getTime());
   tmp.setHours(0, 0, 0, 0);
-
-  // Thursday determines the ISO week
   tmp.setDate(tmp.getDate() + 3 - ((tmp.getDay() + 6) % 7));
 
   const week1 = new Date(tmp.getFullYear(), 0, 4);
@@ -163,8 +161,6 @@ export default function ViewReports() {
         setLoadingPatients(true);
         setError(null);
 
-        // console.log("=== FETCHING PATIENT LIST ===");
-
         const res = await fetch(`${API_URL}/api/provider/patients`, {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -192,8 +188,6 @@ export default function ViewReports() {
           }
         }
 
-        // console.log("Patients Loaded:", pts);
-
       } catch (err) {
         console.error('Error fetching patients', err);
         setError('Unable to connect to server.');
@@ -214,11 +208,11 @@ export default function ViewReports() {
 
     const a: string[] = [];
 
-    // DAILY DROPS
     const dailySorted = [...data.daily].sort((a, b) =>
       a.date.localeCompare(b.date)
     );
 
+    // DAILY DROPS
     for (let i = 1; i < dailySorted.length; i++) {
       const prev = dailySorted[i - 1];
       const curr = dailySorted[i];
@@ -230,7 +224,7 @@ export default function ViewReports() {
       }
     }
 
-    // MISSED DOSE SPIKES
+    // MISSED DOSES
     for (let i = 0; i < dailySorted.length; i++) {
       const d = dailySorted[i];
       const prevMissed = i > 0 ? dailySorted[i - 1].missed : 0;
@@ -245,7 +239,7 @@ export default function ViewReports() {
       }
     }
 
-    // WEEKLY DECLINE
+    // WEEKLY DECLINES
     const weeklySorted = [...data.weeklyAverage].sort((a, b) => {
       if (a.isoYear !== b.isoYear) return a.isoYear - b.isoYear;
       return a.isoWeek - b.isoWeek;
@@ -266,7 +260,7 @@ export default function ViewReports() {
   };
 
   /* ======================================================
-      FETCH ADHERENCE LOGS + BUILD TRENDS
+      FETCH ADHERENCE TRENDS DATA
   ====================================================== */
 
   const fetchTrends = async () => {
@@ -276,45 +270,50 @@ export default function ViewReports() {
       setLoadingTrends(true);
       setError(null);
 
-      // console.log("=== FETCHING ADHERENCE LOGS ===");
-      // console.log("Patient ID:", selectedPatientId);
-      // console.log("Start Date:", dateRange.start);
-      // console.log("End Date:", dateRange.end);
-
-      const url = `${API_URL}/api/adherence?patientId=${selectedPatientId}&startDate=${encodeURIComponent(toISO(dateRange.start))}&endDate=${encodeURIComponent(toISO(dateRange.end))}`;
-
-      // console.log("Request URL:", url);
+      // NEW BACKEND ANALYTICS ENDPOINT
+      const url = `${API_URL}/api/adherence/trends?patientId=${selectedPatientId}&startDate=${encodeURIComponent(
+        toISO(dateRange.start)
+      )}&endDate=${encodeURIComponent(toISO(dateRange.end))}`;
 
       const res = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` },
       });
-        
+
       const raw = await res.json();
-      // console.log("RAW adherence response:", raw);
 
       if (!res.ok) {
-        setError(raw.message || "Failed to fetch adherence logs.");
-        // console.log("Failed to fetch adherence logs.")
+        setError(raw.message || "Failed to fetch adherence trends.");
         return;
       }
 
-      if (!Array.isArray(raw)) {
-        console.error("❌ Expected an array but got:", raw);
-        setError("Server returned an invalid adherence payload.");
-        return;
-      }
+      const backendDaily = raw.trend || [];
 
-      const logs: AdherenceLogEntry[] = raw;
-      // console.log("Raw adherence logs received:", logs);
-      // console.log("RAW adherence response:", raw);
+      // Convert backend => DailyPoint format
+      const dailyFromBackend: DailyPoint[] = backendDaily.map((d: any) => ({
+        date: d.date,
+        taken: d.taken ?? 0,
+        missed: d.missed ?? 0,
+        pct: d.adherenceRate ?? 0,
+      }));
 
-      if (!res.ok) {
-        setError("Failed to fetch adherence logs.");
+      // FETCH OLD LOGS TO PRESERVE EXISTING CHARTS (weekly + meds)
+      const oldUrl = `${API_URL}/api/adherence?patientId=${selectedPatientId}&startDate=${encodeURIComponent(
+        toISO(dateRange.start)
+      )}&endDate=${encodeURIComponent(toISO(dateRange.end))}`;
+
+      const oldRes = await fetch(oldUrl, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const logs = await oldRes.json();
+
+      if (!Array.isArray(logs)) {
+        setError("Server returned invalid adherence logs.");
         return;
       }
 
       /* -------------------------------------
-          DAILY ADHERENCE
+        OLD DAILY CALCULATION (fallback logic)
       -------------------------------------- */
       const dailyMap: Record<string, { taken: number; missed: number }> = {};
 
@@ -327,17 +326,20 @@ export default function ViewReports() {
         if (log.status === "missed") dailyMap[day].missed++;
       });
 
-      const daily = Object.entries(dailyMap).map(([date, d]) => {
+      const dailyFromOldMethod = Object.entries(dailyMap).map(([date, d]) => {
         const total = d.taken + d.missed;
         const pct = total > 0 ? Math.round((d.taken / total) * 100) : 0;
 
         return { date, taken: d.taken, missed: d.missed, pct };
       });
 
-      // console.log("Computed DAILY adherence:", daily);
+      // FINAL DAILY = backend trends preferred
+      const finalDaily = dailyFromBackend.length > 0 ?
+        dailyFromBackend :
+        dailyFromOldMethod;
 
       /* -------------------------------------
-          MEDICATION ADHERENCE
+        MEDICATION ADHERENCE 
       -------------------------------------- */
       const medMap: Record<string, { name: string; taken: number; total: number }> = {};
 
@@ -361,17 +363,13 @@ export default function ViewReports() {
         pct: m.total > 0 ? Math.round((m.taken / m.total) * 100) : 0,
       }));
 
-      // console.log("Computed MEDICATION adherence:", medications);
-
       /* -------------------------------------
-          WEEKLY ADHERENCE (ISO)
+        WEEKLY ADHERENCE
       -------------------------------------- */
-      const weeklyMap: Record<string, {
-        taken: number;
-        total: number;
-        isoYear: number;
-        isoWeek: number;
-      }> = {};
+      const weeklyMap: Record<
+        string,
+        { taken: number; total: number; isoYear: number; isoWeek: number }
+      > = {};
 
       logs.forEach((log) => {
         const date = new Date(log.scheduledTime);
@@ -395,22 +393,18 @@ export default function ViewReports() {
         })
       );
 
-      // console.log("Computed WEEKLY adherence:", weeklyAverage);
-
       /* -------------------------------------
-          FINAL TREND RESPONSE
+        FINAL TREND RESPONSE
       -------------------------------------- */
       const result: TrendResponse = {
         patient: {
           id: selectedPatientId,
           name: patients.find((p) => p._id === selectedPatientId)?.name,
         },
-        daily,
+        daily: finalDaily,
         medications,
         weeklyAverage,
       };
-
-      // console.log("Final TrendResponse:", result);
 
       setTrendData(result);
       setAlerts(computeAlerts(result));
