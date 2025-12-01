@@ -87,61 +87,193 @@ exports.getAdherenceStats = async (req, res) => {
 };
 
 exports.getAdherenceReport = async (req, res) => {
-    try {
-        if (req.user.role !== 'provider') {
-            return res.status(403).json({ message: 'Only providers can access adherence reports' });
-        }
-
-        const provider = await User.findById(req.user._id).populate('patients', 'firstName lastName');
-        if (!provider) return res.status(404).json({ message: 'Provider not found' });
-
-        const report = await AdherenceLog.aggregate([
-            { $match: { patient: { $in: provider.patients.map(p => p._id) } } },
-            {
-                $group: {
-                    _id: '$patient',
-                    totalLogs: { $sum: 1 },
-                    taken: { $sum: { $cond: [{ $eq: ['$status', 'taken'] }, 1, 0] } },
-                    missed: { $sum: { $cond: [{ $eq: ['$status', 'missed'] }, 1, 0] } },
-                    skipped: { $sum: { $cond: [{ $eq: ['$status', 'skipped'] }, 1, 0] } },
-                    pending: { $sum: { $cond: [{ $eq: ['$status', 'pending'] }, 1, 0] } }
-                }
-            },
-            {
-                $project: {
-                    _id: 1,
-                    totalLogs: 1,
-                    taken: 1,
-                    missed: 1,
-                    skipped: 1,
-                    pending: 1,
-                    adherenceRate: {
-                        $cond: [
-                            { $gt: ['$totalLogs', 0] },
-                            { $multiply: [{ $divide: ['$taken', '$totalLogs'] }, 100] },
-                            0
-                        ]
-                    }
-                }
-            }
-        ]);
-
-        // Attach patient names
-        const result = report.map(r => {
-            const patient = provider.patients.find(p => p._id.toString() === r._id.toString());
-            return {
-                patientId: r._id,
-                patientName: patient ? `${patient.firstName} ${patient.lastName}` : 'Unknown',
-                ...r
-            };
-        });
-
-        res.status(200).json(result);
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Server error', error: error.message });
+  try {
+    if (req.user.role !== 'provider') {
+      return res.status(403).json({ message: 'Only providers can access adherence reports' });
     }
+
+    const { patientId, startDate, endDate } = req.query;
+
+    const provider = await User.findById(req.user._id).populate('patients', 'firstName lastName');
+    if (!provider) return res.status(404).json({ message: 'Provider not found' });
+
+    // Build match query
+    const providerPatientIds = provider.patients.map(p => p._id.toString());
+    const matchQuery = {
+      patient: { $in: provider.patients.map(p => p._id) }
+    };
+
+    // Optional: filter by one patient
+    if (patientId) {
+      // ensure provider actually owns this patient
+      if (!providerPatientIds.includes(patientId)) {
+        return res.status(403).json({ message: 'You are not authorized to access this patient\'s adherence report' });
+      }
+      matchQuery.patient = new mongoose.Types.ObjectId(patientId);
+    }
+
+    // Optional: filter by date range
+    if (startDate || endDate) {
+      matchQuery.scheduledTime = {};
+      if (startDate) matchQuery.scheduledTime.$gte = new Date(startDate);
+      if (endDate) matchQuery.scheduledTime.$lte = new Date(endDate);
+    }
+
+    const report = await AdherenceLog.aggregate([
+      { $match: matchQuery },
+      {
+        $group: {
+          _id: '$patient',
+          totalLogs: { $sum: 1 },
+          taken: { $sum: { $cond: [{ $eq: ['$status', 'taken'] }, 1, 0] } },
+          missed: { $sum: { $cond: [{ $eq: ['$status', 'missed'] }, 1, 0] } },
+          skipped: { $sum: { $cond: [{ $eq: ['$status', 'skipped'] }, 1, 0] } },
+          pending: { $sum: { $cond: [{ $eq: ['$status', 'pending'] }, 1, 0] } }
+        }
+      },
+      {
+        $project: {
+          _id: 1,
+          totalLogs: 1,
+          taken: 1,
+          missed: 1,
+          skipped: 1,
+          pending: 1,
+          adherenceRate: {
+            $cond: [
+              { $gt: ['$totalLogs', 0] },
+              { $multiply: [{ $divide: ['$taken', '$totalLogs'] }, 100] },
+              0
+            ]
+          }
+        }
+      }
+    ]);
+
+    // Attach patient names
+    const result = report.map(r => {
+      const patient = provider.patients.find(p => p._id.toString() === r._id.toString());
+      return {
+        patientId: r._id,
+        patientName: patient ? `${patient.firstName} ${patient.lastName}` : 'Unknown',
+        totalLogs: r.totalLogs,
+        taken: r.taken,
+        missed: r.missed,
+        skipped: r.skipped,
+        pending: r.pending,
+        adherenceRate: r.adherenceRate
+      };
+    });
+
+    res.status(200).json({
+      filters: {
+        patientId: patientId || null,
+        startDate: startDate || null,
+        endDate: endDate || null
+      },
+      report: result
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
 };
+
+exports.getAdherenceTrends = async (req, res) => {
+  try {
+    if (req.user.role !== 'provider') {
+      return res.status(403).json({ message: 'Only providers can access adherence trends' });
+    }
+
+    const { patientId, startDate, endDate } = req.query;
+
+    const provider = await User.findById(req.user._id).populate('patients', 'firstName lastName');
+    if (!provider) return res.status(404).json({ message: 'Provider not found' });
+
+    const providerPatientIds = provider.patients.map(p => p._id.toString());
+
+    // Build match query: only this provider's patients
+    const matchQuery = {
+      patient: { $in: provider.patients.map(p => p._id) }
+    };
+
+    // Optional: filter by specific patient
+    if (patientId) {
+      if (!providerPatientIds.includes(patientId)) {
+        return res.status(403).json({ message: 'You are not authorized to access this patient\'s adherence trends' });
+      }
+      matchQuery.patient = new mongoose.Types.ObjectId(patientId);
+    }
+
+    // Optional: filter by date range
+    if (startDate || endDate) {
+      matchQuery.scheduledTime = {};
+      if (startDate) matchQuery.scheduledTime.$gte = new Date(startDate);
+      if (endDate) matchQuery.scheduledTime.$lte = new Date(endDate);
+    }
+
+    const trends = await AdherenceLog.aggregate([
+      { $match: matchQuery },
+
+      // Normalize date (group by day)
+      {
+        $addFields: {
+          trendDate: {
+            $dateToString: { format: '%Y-%m-%d', date: '$scheduledTime' }
+          }
+        }
+      },
+
+      // Group by day and compute counts
+      {
+        $group: {
+          _id: '$trendDate',
+          totalLogs: { $sum: 1 },
+          taken: { $sum: { $cond: [{ $eq: ['$status', 'taken'] }, 1, 0] } },
+          missed: { $sum: { $cond: [{ $eq: ['$status', 'missed'] }, 1, 0] } },
+          skipped: { $sum: { $cond: [{ $eq: ['$status', 'skipped'] }, 1, 0] } },
+          pending: { $sum: { $cond: [{ $eq: ['$status', 'pending'] }, 1, 0] } }
+        }
+      },
+
+      // Sort chronologically
+      { $sort: { _id: 1 } },
+
+      // Shape final fields
+      {
+        $project: {
+          _id: 0,
+          date: '$_id',
+          totalLogs: 1,
+          taken: 1,
+          missed: 1,
+          skipped: 1,
+          pending: 1,
+          adherenceRate: {
+            $cond: [
+              { $gt: ['$totalLogs', 0] },
+              { $multiply: [{ $divide: ['$taken', '$totalLogs'] }, 100] },
+              0
+            ]
+          }
+        }
+      }
+    ]);
+
+    res.status(200).json({
+      filters: {
+        patientId: patientId || null,
+        startDate: startDate || null,
+        endDate: endDate || null
+      },
+      trend: trends
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
 
 exports.updateAdherenceLog = async (req, res) => {
     try{
