@@ -5,15 +5,11 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   FlatList,
-  Modal,
-  TextInput,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
-
 import Constants from 'expo-constants';
 
-// const API_URL = Constants.expoConfig?.extra?.API_URL ?? 'http://10.156.155.13:3000'; // your backend IP
 const API_URL = Constants.expoConfig?.extra?.API_URL ?? 'http://localhost:3000';
 
 interface Patient {
@@ -29,12 +25,10 @@ export default function ViewPatients() {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [patientEmail, setPatientEmail] = useState('');
-  const [assigning, setAssigning] = useState(false);
-  const [assignMessage, setAssignMessage] = useState<string | null>(null);
 
-  // Fetch assigned patients
+  /* -------------------------------------------------------
+      FETCH ASSIGNED PATIENTS
+  ------------------------------------------------------- */
   const fetchPatients = async () => {
     try {
       const token = await AsyncStorage.getItem('token');
@@ -66,65 +60,34 @@ export default function ViewPatients() {
     }
   };
 
-  // Assign new patient by email
-  const assignPatient = async () => {
-    if (!patientEmail.trim()) {
-      setAssignMessage('⚠️ Please enter a valid Patient Email.');
-      return;
-    }
-
-    setAssigning(true);
-    setAssignMessage(null);
-
-    try {
-      const token = await AsyncStorage.getItem('token');
-      const response = await fetch(`${API_URL}/api/provider/assign`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email: patientEmail }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        setAssignMessage(data.message || '❌ Invalid email or patient not found.');
-      } else {
-        setAssignMessage('✅ Patient assigned successfully!');
-        setPatientEmail('');
-        fetchPatients();
-        setTimeout(() => {
-          setAssignMessage(null);
-          setModalVisible(false);
-        }, 1200);
-      }
-    } catch (err) {
-      console.error('Error assigning patient:', err);
-      setAssignMessage('⚠️ Could not connect to server.');
-    } finally {
-      setAssigning(false);
-    }
-  };
-
   useEffect(() => {
     fetchPatients();
   }, []);
 
+  /* -------------------------------------------------------
+      LOADING SCREEN
+  ------------------------------------------------------- */
   if (loading) {
     return (
       <View className="flex-1 items-center justify-center bg-white dark:bg-gray-900">
         <ActivityIndicator size="large" color="#2563eb" />
-        <Text className="mt-3 text-gray-600 dark:text-gray-300">Loading Patients...</Text>
+        <Text className="mt-3 text-gray-600 dark:text-gray-300">
+          Loading Patients...
+        </Text>
       </View>
     );
   }
 
+  /* -------------------------------------------------------
+      ERROR SCREEN
+  ------------------------------------------------------- */
   if (error) {
     return (
       <View className="flex-1 items-center justify-center bg-white dark:bg-gray-900 px-4">
-        <Text className="text-red-500 text-lg font-semibold mb-3 text-center">{error}</Text>
+        <Text className="text-red-500 text-lg font-semibold mb-3 text-center">
+          {error}
+        </Text>
+
         <TouchableOpacity
           onPress={fetchPatients}
           className="bg-blue-500 px-6 py-3 rounded-xl"
@@ -136,6 +99,9 @@ export default function ViewPatients() {
     );
   }
 
+  /* -------------------------------------------------------
+      MAIN UI
+  ------------------------------------------------------- */
   return (
     <View className="flex-1 bg-white dark:bg-gray-900 px-4 pt-10 pb-6">
       <Text className="text-3xl font-bold mb-6 text-gray-800 dark:text-white text-center">
@@ -153,18 +119,26 @@ export default function ViewPatients() {
           showsVerticalScrollIndicator={false}
           renderItem={({ item }) => (
             <View className="bg-gray-100 dark:bg-gray-800 p-4 mb-3 rounded-2xl shadow">
+              
+              {/* Patient Info */}
               <Text className="text-xl font-semibold text-gray-900 dark:text-white">
                 {item.name}
               </Text>
-              <Text className="text-gray-700 dark:text-gray-300">Email: {item.email}</Text>
-              <Text className="text-gray-700 dark:text-gray-300">Gender: {item.gender}</Text>
+              <Text className="text-gray-700 dark:text-gray-300">
+                Email: {item.email}
+              </Text>
+              <Text className="text-gray-700 dark:text-gray-300">
+                Gender: {item.gender}
+              </Text>
               <Text className="text-gray-700 dark:text-gray-300">
                 DOB: {new Date(item.dateOfBirth).toLocaleDateString()}
               </Text>
+
               <Text className="text-blue-600 dark:text-blue-400 font-semibold mt-1">
                 Adherence: {item.adherence === 'N/A' ? 'N/A' : `${item.adherence}%`}
               </Text>
 
+              {/* VIEW REPORTS */}
               <TouchableOpacity
                 onPress={() =>
                   router.push({
@@ -179,95 +153,54 @@ export default function ViewPatients() {
                   View Adherence Trend
                 </Text>
               </TouchableOpacity>
+
+              {/* VIEW MEDICATIONS */}
+              <TouchableOpacity
+                onPress={() =>
+                  router.push({
+                    pathname: '/(provider)/ViewMedications',
+                    params: { patientId: item._id },
+                  })
+                }
+                activeOpacity={0.8}
+                className="mt-3 bg-blue-500 px-4 py-2 rounded-xl self-start"
+              >
+                <Text className="text-white text-sm font-semibold">
+                  View Medications
+                </Text>
+              </TouchableOpacity>
+
+              {/* ADD MEDICATION */}
+              <TouchableOpacity
+                onPress={() =>
+                  router.push({
+                    pathname: '/(provider)/CreateMedication',
+                    params: { patientId: item._id },
+                  })
+                }
+                activeOpacity={0.8}
+                className="mt-3 bg-purple-500 px-4 py-2 rounded-xl self-start"
+              >
+                <Text className="text-white text-sm font-semibold">
+                  Add Medication
+                </Text>
+              </TouchableOpacity>
+
             </View>
           )}
         />
       )}
 
-      {/* Assign Patient Button */}
-      <TouchableOpacity
-        onPress={() => setModalVisible(true)}
-        activeOpacity={0.8}
-        className="bg-green-500 px-6 py-3 rounded-xl mt-4"
-      >
-        <Text className="text-white text-lg font-semibold text-center">Assign New Patient</Text>
-      </TouchableOpacity>
-
-      {/* Back Button */}
+      {/* BACK BUTTON */}
       <TouchableOpacity
         onPress={() => router.push('/(provider)/ProviderHome')}
         activeOpacity={0.8}
-        className="bg-blue-500 px-6 py-3 rounded-xl mt-3"
+        className="bg-blue-500 px-6 py-3 rounded-xl mt-6"
       >
-        <Text className="text-white text-lg font-semibold text-center">Back to Provider Home</Text>
+        <Text className="text-white text-lg font-semibold text-center">
+          Back to Provider Home
+        </Text>
       </TouchableOpacity>
-
-      {/* Assign Modal */}
-      <Modal
-        visible={modalVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <View className="flex-1 justify-center items-center bg-black/40 px-6">
-          <View className="bg-white dark:bg-gray-800 p-6 rounded-2xl w-full max-w-md">
-            <Text className="text-2xl font-bold mb-4 text-gray-800 dark:text-white text-center">
-              Assign Patient
-            </Text>
-
-            <TextInput
-              placeholder="Enter Patient Email"
-              placeholderTextColor="#aaa"
-              value={patientEmail}
-              onChangeText={setPatientEmail}
-              autoCapitalize="none"
-              keyboardType="email-address"
-              className="border border-gray-300 dark:border-gray-700 bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-white rounded-xl px-4 py-3 mb-4"
-            />
-
-            {assigning ? (
-              <View className="items-center mb-2">
-                <ActivityIndicator size="small" color="#2563eb" />
-                <Text className="mt-2 text-gray-500 dark:text-gray-300">Assigning...</Text>
-              </View>
-            ) : assignMessage ? (
-              <Text
-                className={`text-center mb-3 font-semibold ${
-                  assignMessage.includes('✅')
-                    ? 'text-green-600 dark:text-green-400'
-                    : 'text-red-500 dark:text-red-400'
-                }`}
-              >
-                {assignMessage}
-              </Text>
-            ) : null}
-
-            <View className="flex-row justify-between">
-              <TouchableOpacity
-                onPress={assignPatient}
-                disabled={assigning}
-                className={`px-6 py-3 rounded-xl flex-1 mr-2 ${
-                  assigning ? 'bg-green-300' : 'bg-green-500'
-                }`}
-              >
-                <Text className="text-white text-lg font-semibold text-center">
-                  {assigning ? 'Assigning...' : 'Assign'}
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={() => setModalVisible(false)}
-                disabled={assigning}
-                className={`px-6 py-3 rounded-xl flex-1 ml-2 ${
-                  assigning ? 'bg-red-300' : 'bg-red-500'
-                }`}
-              >
-                <Text className="text-white text-lg font-semibold text-center">Cancel</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
