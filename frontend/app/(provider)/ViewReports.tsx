@@ -548,7 +548,7 @@ export default function ViewReports() {
   }
 
   return (
-    <View className="flex-1 bg-white dark:bg-gray-900 pt-10 pb-4 px-4">
+    <View className="flex-1 w-full bg-white dark:bg-gray-900 pt-10 pb-4 px-4">
       <Text className="text-3xl font-bold text-center mb-6 text-gray-800 dark:text-white">
         Adherence Reports
       </Text>
@@ -656,7 +656,7 @@ export default function ViewReports() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
 
         {/* DAILY CHART */}
-        <View className="mb-6 bg-gray-100 dark:bg-gray-800 p-4 rounded-2xl shadow">
+        <View className="mb-4 m-2 bg-gray-100 dark:bg-gray-800 p-4 rounded-2xl shadow">
           <Text className="text-lg font-bold text-gray-800 dark:text-white mb-1">
             Daily Adherence – {currentPatientName}
           </Text>
@@ -671,7 +671,7 @@ export default function ViewReports() {
           ) : dailyChart ? (
             <LineChart
               data={dailyChart}
-              width={screenWidth - 32}
+              width={screenWidth*0.8}
               height={220}
               yAxisSuffix="%"
               chartConfig={dailyChartConfig}
@@ -687,7 +687,7 @@ export default function ViewReports() {
         </View>
 
         {/* MEDICATION CHART */}
-        <View className="mb-6 bg-gray-100 dark:bg-gray-800 p-4 rounded-2xl shadow">
+        <View className="mb-4 m-2 bg-gray-100 dark:bg-gray-800 p-4 rounded-2xl shadow">
           <Text className="text-lg font-bold text-gray-800 dark:text-white mb-1">
             Medication-Specific Adherence
           </Text>
@@ -702,7 +702,7 @@ export default function ViewReports() {
           ) : medChart ? (
             <BarChart
               data={medChart}
-              width={screenWidth - 32}
+              width={screenWidth*0.8}
               height={220}
               yAxisSuffix="%"
               yAxisLabel=''
@@ -719,7 +719,7 @@ export default function ViewReports() {
 
         {/* WEEKLY SUMMARY */}
         {trendData?.weeklyAverage && trendData.weeklyAverage.length > 0 && (
-          <View className="mt-2 bg-gray-100 dark:bg-gray-800 rounded-2xl p-4 shadow">
+          <View className="mt-2 m-2 bg-gray-100 dark:bg-gray-800 rounded-2xl p-4 shadow">
             <Text className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">
               Weekly Average Adherence
             </Text>
