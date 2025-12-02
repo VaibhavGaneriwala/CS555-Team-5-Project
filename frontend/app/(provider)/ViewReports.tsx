@@ -483,6 +483,25 @@ export default function ViewReports() {
     };
   }, [trendData]);
 
+  const dailyChartConfig = {
+    backgroundGradientFrom: '#ffffff',
+    backgroundGradientTo: '#ffffff',
+    decimalPlaces: 0,
+    color: (opacity = 1) => `rgba(37, 99, 235, ${opacity})`,
+    labelColor: (opacity = 1) => `rgba(55, 65, 81, ${opacity})`,
+  };
+
+  const specificChartConfig = {
+    backgroundGradientFrom: '#ffffff',
+    backgroundGradientTo: '#ffffff',
+    decimalPlaces: 0,
+    color: (opacity = 1) => `rgba(37, 99, 235, ${opacity})`,
+    labelColor: (opacity = 1) => `rgba(55, 65, 81, ${opacity})`,
+    barPercentage: 1,
+    fillShadowGradient: '#4CAF50',
+    fillShadowGradientOpacity: 0.7,
+  }
+
   /* ======================================================
       RENDER
   ====================================================== */
@@ -655,15 +674,10 @@ export default function ViewReports() {
               width={screenWidth - 32}
               height={220}
               yAxisSuffix="%"
-              chartConfig={{
-                backgroundGradientFrom: '#ffffff',
-                backgroundGradientTo: '#ffffff',
-                decimalPlaces: 0,
-                color: (opacity = 1) => `rgba(37, 99, 235, ${opacity})`,
-                labelColor: (opacity = 1) => `rgba(55, 65, 81, ${opacity})`,
-              }}
+              chartConfig={dailyChartConfig}
               style={{ borderRadius: 16 }}
               bezier
+              fromZero={true}
             />
           ) : (
             <Text className="text-gray-500 dark:text-gray-400 text-sm mt-2">
@@ -693,13 +707,7 @@ export default function ViewReports() {
               yAxisSuffix="%"
               yAxisLabel=''
               fromZero
-              chartConfig={{
-                backgroundGradientFrom: '#ffffff',
-                backgroundGradientTo: '#ffffff',
-                decimalPlaces: 0,
-                color: (opacity = 1) => `rgba(16,185,129,${opacity})`,
-                labelColor: (opacity = 1) => `rgba(55, 65, 81, ${opacity})`,
-              }}
+              chartConfig={specificChartConfig}
               style={{ borderRadius: 16 }}
             />
           ) : (
