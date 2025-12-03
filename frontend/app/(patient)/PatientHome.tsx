@@ -57,6 +57,8 @@ interface Medication {
   instructions: string;
   startDate: string;
   createdAt: string;
+  endDate?: string;
+  isActive?: boolean;
 }
 
 type MedMap = Record<string, { name?: string; dosage?: string }>;
@@ -99,6 +101,17 @@ export default function PatientHome() {
   const [providers, setProviders] = useState<ProviderItem[]>([]);
   const [providersLoading, setProvidersLoading] = useState<boolean>(true);
   const [providersError, setProvidersError] = useState<string | null>(null);
+
+  // ---------- Recent Medications ----------
+  const [recentMedications, setRecentMedications] = useState<Medication[]>([]);
+  const [recentMedsLoading, setRecentMedsLoading] = useState<boolean>(true);
+  const [recentMedsError, setRecentMedsError] = useState<string | null>(null);
+  const [upcomingMedications, setUpcomingMedications] = useState<Medication[]>([]);
+  const [upcomingMedsLoading, setUpcomingMedsLoading] = useState<boolean>(true);
+  const [upcomingMedsError, setUpcomingMedsError] = useState<string | null>(null);
+  const [pastMedications, setPastMedications] = useState<Medication[]>([]);
+  const [pastMedsLoading, setPastMedsLoading] = useState<boolean>(true);
+  const [pastMedsError, setPastMedsError] = useState<string | null>(null);
 
   // Load token
   useEffect(() => {
@@ -291,10 +304,86 @@ export default function PatientHome() {
     }
   };
 
+  // ---------------- Recent Medications ----------------
+  const fetchRecentMedications = async () => {
+    setRecentMedsLoading(true);
+    setRecentMedsError(null);
+    setUpcomingMedsLoading(true);
+    setUpcomingMedsError(null);
+    setPastMedsLoading(true);
+    setPastMedsError(null);
+    try {
+      const storedToken = await AsyncStorage.getItem('token');
+      if (!storedToken) {
+        const msg = 'Please log in again.';
+        setRecentMedsError(msg);
+        setUpcomingMedsError(msg);
+        return;
+      }
+
+      const response = await fetch(`${API_URL}/api/medications`, {
+        headers: {
+          Authorization: `Bearer ${storedToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        const msg = data?.message || 'Failed to fetch medications.';
+        setRecentMedsError(msg);
+        setUpcomingMedsError(msg);
+        setPastMedsError(msg);
+      } else {
+        const meds: Medication[] = normalizeToArray(data);
+
+        // Recent: medications created in the last 7 days
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        const recent = meds.filter((m) => new Date(m.createdAt) >= sevenDaysAgo).slice(0, 5);
+        setRecentMedications(recent);
+
+        // Upcoming: medications whose startDate is in the next 7 days
+        const now = new Date();
+        const inSevenDays = new Date();
+        inSevenDays.setDate(inSevenDays.getDate() + 7);
+        const upcoming = meds.filter((m) => {
+          if (!m.startDate) return false;
+          const sd = new Date(m.startDate);
+          return sd > now && sd <= inSevenDays;
+        }).slice(0, 5);
+        setUpcomingMedications(upcoming);
+
+        // Past: medications that have an endDate before now, or are marked inactive
+        const past = meds.filter((m) => {
+          if (m.isActive === false) return true;
+          if (m.endDate) {
+            try {
+              return new Date(m.endDate) < now;
+            } catch (e) {
+              return false;
+            }
+          }
+          return false;
+        }).slice(0, 5);
+        setPastMedications(past);
+      }
+    } catch (err) {
+      setRecentMedsError('Could not connect to server.');
+      setUpcomingMedsError('Could not connect to server.');
+      setPastMedsError('Could not connect to server.');
+    } finally {
+      setRecentMedsLoading(false);
+      setUpcomingMedsLoading(false);
+      setPastMedsLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchProviders();
+    fetchRecentMedications();
   }, []);
-
   // ---------------- UI ----------------
   return (
     <View className="flex-1 items-center justify-center bg-white dark:bg-gray-900 px-4">
@@ -339,6 +428,54 @@ export default function PatientHome() {
               loading={providersLoading}
               error={providersError}
             />
+
+            {/* Upcoming medications small card */}
+            <View className="mt-4 w-full flex items-center">
+              <View className="bg-gray-200 dark:bg-gray-700 p-4 rounded-xl w-11/12 sm:max-w-[300px]">
+                <Text className="text-lg font-semibold text-gray-800 dark:text-white mb-2">
+                  Upcoming Medications
+                </Text>
+                {upcomingMedsLoading ? (
+                  <ActivityIndicator size="small" color="#3B82F6" />
+                ) : upcomingMedsError ? (
+                  <Text className="text-red-500">{upcomingMedsError}</Text>
+                ) : upcomingMedications && upcomingMedications.length > 0 ? (
+                  upcomingMedications.map((m) => (
+                    <View key={m._id} className="border-b border-gray-300 py-2">
+                      <Text className="text-gray-800 dark:text-gray-200 font-semibold">{m.name || 'Unnamed'}</Text>
+                      <Text className="text-gray-600 dark:text-gray-400">{`Starts: ${new Date(m.startDate).toLocaleDateString()}`}</Text>
+                      <Text className="text-gray-600 dark:text-gray-400">{`Dosage: ${m.dosage || 'N/A'}`}</Text>
+                    </View>
+                  ))
+                ) : (
+                  <Text className="text-gray-600 dark:text-gray-300">No upcoming medications in the next 7 days.</Text>
+                )}
+              </View>
+            </View>
+
+            {/* Past medications small card */}
+            <View className="mt-4 w-full flex items-center">
+              <View className="bg-gray-200 dark:bg-gray-700 p-4 rounded-xl w-11/12 sm:max-w-[300px]">
+                <Text className="text-lg font-semibold text-gray-800 dark:text-white mb-2">
+                  Past Medications
+                </Text>
+                {pastMedsLoading ? (
+                  <ActivityIndicator size="small" color="#3B82F6" />
+                ) : pastMedsError ? (
+                  <Text className="text-red-500">{pastMedsError}</Text>
+                ) : pastMedications && pastMedications.length > 0 ? (
+                  pastMedications.map((m) => (
+                    <View key={m._id} className="border-b border-gray-300 py-2">
+                      <Text className="text-gray-800 dark:text-gray-200 font-semibold">{m.name || 'Unnamed'}</Text>
+                      <Text className="text-gray-600 dark:text-gray-400">{`Ended: ${m.endDate ? new Date(m.endDate).toLocaleDateString() : 'Unknown'}`}</Text>
+                      <Text className="text-gray-600 dark:text-gray-400">{`Dosage: ${m.dosage || 'N/A'}`}</Text>
+                    </View>
+                  ))
+                ) : (
+                  <Text className="text-gray-600 dark:text-gray-300">No past medications.</Text>
+                )}
+              </View>
+            </View>
           </View>
         </View>
       </View>
