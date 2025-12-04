@@ -18,6 +18,7 @@ app.use('/api/provider', providerRoutes);
 app.use('/api/medications', require('./routes/medications'));
 app.use('/api/patient', require('./routes/patient'));
 app.use('/api/adherence', require('./routes/adherence'));
+app.use('/api/admin', require('./routes/admin'));
 
 const port = process.env.PORT
 
