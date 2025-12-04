@@ -1,158 +1,276 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Alert } from 'react-native';
-import { router } from 'expo-router';
-import axios from 'axios';
-import * as Notifications from 'expo-notifications';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import Constants from 'expo-constants';
-import { registerForPushNotificationsAsync } from '../utils/notifications';
-import TodaysMedicationsCard from '@/components/TodaysMedicationsCard';
-import MedicationListCard from '@/components/MedicationListCard';
+import React, { useEffect, useState, useMemo } from "react";
+import {
+  View,
+  Text,
+  ActivityIndicator,
+  TouchableOpacity,
+  ScrollView,
+} from "react-native";
+import { Calendar } from "react-native-calendars";
+import { router } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import Constants from "expo-constants";
 
-const API_URL = Constants.expoConfig?.extra?.API_URL ?? 'http://localhost:3000';
+const API_URL = Constants.expoConfig?.extra?.API_URL ?? "http://localhost:3000";
 
-interface Schedule {
-  time: string;
-  days: string[];
-}
-
+// ---------------- Types ----------------
 interface Medication {
   _id: string;
   name: string;
-  dosage?: string;
-  frequency?: string;
-  schedule?: Schedule[];
+  dosage: string;
+  frequency: string;
+  instructions: string;
+  schedule?: { time: string; days: string[] }[];
   startDate?: string;
-  instructions?: string;
+  createdAt: string;
 }
 
-export default function MedicationCalendar() {
+export default function MedicationCalendarPage() {
   const [medications, setMedications] = useState<Medication[]>([]);
-  const [submitting, setSubmitting] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [token, setToken] = useState<string | null>(null);
 
+  const [selectedDate, setSelectedDate] = useState(
+    new Date().toISOString().split("T")[0]
+  );
+
+  const [successMessage, setSuccessMessage] = useState("");
+  const [lastLogId, setLastLogId] = useState<string | null>(null);
+
+  // Load token
   useEffect(() => {
-    registerForPushNotificationsAsync();
-    fetchMedications();
+    AsyncStorage.getItem("token").then((t) => setToken(t));
   }, []);
 
-  const fetchMedications = async () => {
-    try {
-      const token = await AsyncStorage.getItem('token');
-      const response = await axios.get<Medication[]>(`${API_URL}/api/medications`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setMedications(response.data);
-    } catch (error) {
-      Alert.alert('Error', 'Failed to load medication reminders.');
+  // Fetch medications
+  useEffect(() => {
+    if (!token) return;
+
+    const loadMeds = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/medications`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        const data = await res.json();
+        setMedications(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error("Error loading medications:", err);
+      }
+      setLoading(false);
+    };
+
+    loadMeds();
+  }, [token]);
+
+  // ---------------- Helper Functions ----------------
+  const getDayName = (dateString: string) => {
+    const d = new Date(dateString);
+    return d.toLocaleDateString("en-US", { weekday: "long" });
+  };
+
+  const getMedsForDate = (dateString: string) => {
+    const day = getDayName(dateString);
+
+    return medications.filter((m) => {
+      if (!m.schedule) return false;
+
+      const matchesDay = m.schedule.some((s) => s.days.includes(day));
+      if (!matchesDay) return false;
+
+      if (m.startDate && new Date(m.startDate) > new Date(dateString))
+        return false;
+
+      return true;
+    });
+  };
+
+  const markedDates = useMemo(() => {
+    const marks: any = {};
+
+    for (let i = 0; i < 90; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() + i);
+      const ds = d.toISOString().split("T")[0];
+
+      if (getMedsForDate(ds).length > 0) {
+        marks[ds] = { marked: true, dotColor: "#3B82F6" };
+      }
     }
-  };
 
-  const buildTodayDateFromHHmm = (hhmm: string) => {
-    const [h, m] = hhmm.split(':').map(Number);
-    const d = new Date();
-    d.setHours(h, m, 0, 0);
-    return d;
-  };
+    marks[selectedDate] = {
+      ...(marks[selectedDate] || {}),
+      selected: true,
+      selectedColor: "#2563EB",
+    };
 
-  const pickScheduledTime = (med: Medication) => {
-    const now = new Date();
-    const dayName = now.toLocaleDateString(undefined, { weekday: 'long' });
+    return marks;
+  }, [medications, selectedDate]);
 
-    const todaysTimes =
-      med.schedule
-        ?.filter((s) => s.days.includes(dayName))
-        ?.map((s) => buildTodayDateFromHHmm(s.time))
-        ?.sort((a, b) => a.getTime() - b.getTime()) || [];
-
-    if (todaysTimes.length === 0) return now;
-
-    const pastOrNow = todaysTimes.filter((t) => t.getTime() <= now.getTime());
-    if (pastOrNow.length) return pastOrNow[pastOrNow.length - 1];
-
-    return todaysTimes[0] ?? now;
-  };
-
-  const logDose = async (med: Medication) => {
+  // ---------------- LOG DOSE + UNDO ----------------
+  const logDose = async (medId: string, time: string) => {
     try {
-      setSubmitting(med._id);
-      const token = await AsyncStorage.getItem('token');
-      if (!token) {
-        Alert.alert('Error', 'You must be logged in to log a dose.');
-        return;
+      if (!token) return;
+
+      const res = await fetch(`${API_URL}/api/adherence`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          medicationId: medId,                    // ✅ matches controller
+          scheduledTime: `${selectedDate} ${time}`,
+          takenAt: new Date().toISOString(),
+          status: "taken",
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        console.error("Log dose error:", data);
+        throw new Error(data?.message || "Failed to log dose");
       }
 
-      const scheduledTime = pickScheduledTime(med);
+      if (data?.adherenceLog?._id) {
+        setLastLogId(data.adherenceLog._id);
+      } else {
+        setLastLogId(null);
+      }
 
-      await axios.post(
-        `${API_URL}/api/adherence`,
-        {
-          medicationId: med._id,
-          scheduledTime,
-          takenAt: new Date(),
-          status: 'taken',
-          notes: 'Taken on time',
-        },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      Alert.alert('Dose Logged', `Logged a dose for ${med.name}.`, [
-        { text: 'OK', onPress: () => router.push('/(patient)/PatientHome') },
-      ]);
-    } catch (error) {
-      Alert.alert('Error', 'Unable to log dose. Please try again.');
-    } finally {
-      setSubmitting(null);
+      setSuccessMessage("Dose logged successfully!");
+      setTimeout(() => setSuccessMessage(""), 2500);
+    } catch (err) {
+      console.error(err);
+      setSuccessMessage("Error logging dose.");
+      setTimeout(() => setSuccessMessage(""), 2500);
     }
   };
 
+  const undoDose = async () => {
+    if (!lastLogId || !token) return;
+
+    try {
+      const res = await fetch(`${API_URL}/api/adherence/${lastLogId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        console.error("Undo dose error:", data);
+        throw new Error(data?.message || "Failed to undo dose");
+      }
+
+      setSuccessMessage("Dose undone.");
+      setLastLogId(null);
+      setTimeout(() => setSuccessMessage(""), 2500);
+    } catch (err) {
+      console.error(err);
+      setSuccessMessage("Error undoing dose.");
+      setTimeout(() => setSuccessMessage(""), 2500);
+    }
+  };
+
+  if (loading) {
+    return (
+      <View className="flex-1 justify-center items-center bg-gray-900">
+        <ActivityIndicator size="large" color="#3B82F6" />
+        <Text className="text-gray-300 mt-4">Loading medications...</Text>
+      </View>
+    );
+  }
+
+  const todaysMeds = getMedsForDate(selectedDate);
+
   return (
-    <View className="flex-1 items-center justify-center bg-white dark:bg-gray-900 px-4">
-      {/* Page title */}
-      <Text className="text-3xl font-bold mb-8 text-gray-800 dark:text-white">
+    <ScrollView className="flex-1 bg-gray-900 px-4 pt-10">
+      <Text className="text-3xl font-bold text-white text-center mb-6">
         Medication Calendar
       </Text>
 
-      {/* Main Centered Container (matches PatientHome) */}
-      <View className="flex justify-center items-center w-full max-w-6xl">
-        <View
-          className="flex justify-center items-center min-[850px]:items-start flex-col min-[850px]:flex-row 
-          gap-6 p-6 rounded-xl bg-gray-100 dark:bg-gray-800 shadow-lg w-full"
-        >
-          {/* ---------- Today's Medications ---------- */}
-          <View className="flex items-center">
-            <TodaysMedicationsCard
-              medications={medications}
-              submitting={submitting}
-              onLogDose={logDose}
-            />
+      {/* Calendar */}
+      <Calendar
+        markingType="dot"
+        markedDates={markedDates}
+        onDayPress={(day) => setSelectedDate(day.dateString)}
+        theme={{
+          backgroundColor: "#111827",
+          calendarBackground: "#1F2937",
+          monthTextColor: "#fff",
+          dayTextColor: "#fff",
+          selectedDayBackgroundColor: "#2563EB",
+          selectedDayTextColor: "#fff",
+          arrowColor: "#60A5FA",
+        }}
+      />
 
+      {/* Success Message + Undo */}
+      {successMessage !== "" && (
+        <View className="bg-green-600 p-4 rounded-xl mt-4 w-full max-w-xl self-center flex-row justify-between items-center">
+          <Text className="text-white font-semibold">{successMessage}</Text>
+
+          {lastLogId && (
             <TouchableOpacity
-              onPress={() => router.push('/(patient)/EditMedication')}
-              activeOpacity={0.8}
-              className="bg-blue-500 px-6 py-3 rounded-xl w-full max-w-[300px]"
+              onPress={undoDose}
+              className="bg-white px-3 py-1 rounded-lg"
             >
-              <Text className="text-white text-lg font-semibold text-center">
-                Go to Edit Medication
-              </Text>
+              <Text className="text-green-700 font-bold">Undo</Text>
             </TouchableOpacity>
-          </View>
+          )}
+        </View>
+      )}
 
-          {/* ---------- Medication List ---------- */}
-          <View className="flex items-center">
-            <MedicationListCard medications={medications} />
+      {/* Medication List */}
+      <View className="mt-8 w-full flex items-center">
+        <View className="bg-gray-800 p-5 rounded-xl w-full max-w-2xl">
+          <Text className="text-xl font-bold text-white mb-3">
+            Medications on {selectedDate}
+          </Text>
 
-            <TouchableOpacity
-              onPress={() => router.push('/(patient)/PatientHome')}
-              activeOpacity={0.8}
-              className="bg-blue-500 px-6 py-3 rounded-xl w-full max-w-[300px]"
-            >
-              <Text className="text-white text-lg font-semibold text-center">
-                Back to Patient Home
-              </Text>
-            </TouchableOpacity>
-          </View>
+          {todaysMeds.length === 0 ? (
+            <Text className="text-gray-400">No medications scheduled.</Text>
+          ) : (
+            todaysMeds.map((m) => (
+              <View key={m._id} className="border-b border-gray-700 py-3">
+                <Text className="text-gray-200 font-semibold">
+                  {m.name} — {m.dosage}
+                </Text>
+
+                {m.schedule
+                  ?.filter((s) => s.days.includes(getDayName(selectedDate)))
+                  .map((s, i) => (
+                    <View
+                      key={i}
+                      className="flex-row justify-between items-center mt-2"
+                    >
+                      <Text className="text-gray-300">🕒 {s.time}</Text>
+
+                      <TouchableOpacity
+                        onPress={() => logDose(m._id, s.time)}
+                        className="bg-green-600 px-3 py-1 rounded-lg"
+                      >
+                        <Text className="text-white font-semibold text-sm">
+                          Log Dose
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+              </View>
+            ))
+          )}
         </View>
       </View>
-    </View>
+
+      {/* Back Button */}
+      <View className="flex items-center mt-10 mb-10">
+        <TouchableOpacity
+          onPress={() => router.push("/(patient)/PatientHome")}
+          className="bg-blue-500 px-6 py-3 rounded-xl"
+        >
+          <Text className="text-white font-semibold">Back to Patient Home</Text>
+        </TouchableOpacity>
+      </View>
+    </ScrollView>
   );
 }

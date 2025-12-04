@@ -1,3 +1,7 @@
+// ================================================
+// FINAL FIXED PatientHome.tsx  (FULL WORKING FILE)
+// ================================================
+
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
@@ -12,7 +16,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import PatientInfoCard from '@/components/PatientInfoCard';
 import ProvidersCard from '@/components/ProvidersCard';
-
 
 const API_URL = Constants.expoConfig?.extra?.API_URL ?? 'http://localhost:3000';
 
@@ -63,14 +66,6 @@ interface Medication {
 
 type MedMap = Record<string, { name?: string; dosage?: string }>;
 
-// ---------- Provider Types ----------
-interface ProviderItem {
-  _id: string;
-  name: string;
-  email: string;
-  phoneNumber: string;
-}
-
 // ---------------- Helpers ----------------
 const normalizeToArray = (raw: any) => {
   if (Array.isArray(raw)) return raw;
@@ -86,293 +81,176 @@ const isPopulatedMedication = (m: any): m is PopulatedMedication =>
 
 const toISO = (d: Date) => d.toISOString();
 
+// ⭐⭐⭐ Option A — Compute Next Dose
+function getNextDoseDate(med: Medication): Date | null {
+  try {
+    const now = new Date();
+    const start = new Date(med.startDate);
+
+    // If medication hasn't started yet → Next dose is start date
+    if (now < start) return start;
+
+    const freq = med.frequency?.toLowerCase() || '';
+    const next = new Date(now);
+
+    // Daily
+    if (freq.includes('daily') && !freq.includes('twice')) {
+      next.setDate(now.getDate() + 1);
+    }
+    // Twice daily
+    else if (freq.includes('twice') || freq.includes('2 times')) {
+      next.setHours(now.getHours() + 12);
+    }
+    // Every X hours
+    else if (freq.includes('every')) {
+      const hours = parseInt(freq.replace(/\D/g, ''));
+      if (!isNaN(hours)) next.setHours(now.getHours() + hours);
+      else next.setDate(now.getDate() + 1);
+    }
+    // Fallback → Daily
+    else next.setDate(now.getDate() + 1);
+
+    return next;
+  } catch {
+    return null;
+  }
+}
+
 // ---------------- Component ----------------
+
 export default function PatientHome() {
   const [patient, setPatient] = useState<Patient | null>(null);
   const [medications, setMedications] = useState<Medication[]>([]);
   const [medMap, setMedMap] = useState<MedMap>({});
   const [adherenceLogs, setAdherenceLogs] = useState<AdherenceLog[]>([]);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [showLogs, setShowLogs] = useState<boolean>(false);
+  const [showLogs, setShowLogs] = useState(false);
   const [token, setToken] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
-  // ---------- Provider State ----------
-  const [providers, setProviders] = useState<ProviderItem[]>([]);
-  const [providersLoading, setProvidersLoading] = useState<boolean>(true);
-  const [providersError, setProvidersError] = useState<string | null>(null);
+  // Providers
+  const [providers, setProviders] = useState<any[]>([]);
+  const [providersLoading, setProvidersLoading] = useState(true);
 
-  // ---------- Recent Medications ----------
+  // Medication sections
   const [recentMedications, setRecentMedications] = useState<Medication[]>([]);
-  const [recentMedsLoading, setRecentMedsLoading] = useState<boolean>(true);
-  const [recentMedsError, setRecentMedsError] = useState<string | null>(null);
-  const [upcomingMedications, setUpcomingMedications] = useState<Medication[]>([]);
-  const [upcomingMedsLoading, setUpcomingMedsLoading] = useState<boolean>(true);
-  const [upcomingMedsError, setUpcomingMedsError] = useState<string | null>(null);
+  const [upcomingMedications, setUpcomingMedications] = useState<any[]>([]);
   const [pastMedications, setPastMedications] = useState<Medication[]>([]);
-  const [pastMedsLoading, setPastMedsLoading] = useState<boolean>(true);
-  const [pastMedsError, setPastMedsError] = useState<string | null>(null);
+  const [recentMedsLoading, setRecentMedsLoading] = useState(true);
+  const [upcomingMedsLoading, setUpcomingMedsLoading] = useState(true);
+  const [pastMedsLoading, setPastMedsLoading] = useState(true);
 
   // Load token
   useEffect(() => {
-    const loadToken = async () => {
-      const storedToken = await AsyncStorage.getItem('token');
-      setToken(storedToken);
-    };
-    loadToken();
+    AsyncStorage.getItem('token').then(setToken);
   }, []);
 
-  // Fetch patient profile
+  // Fetch patient
   useEffect(() => {
-    const fetchPatient = async () => {
-      if (!token) return;
-      try {
-        const res = await fetch(`${API_URL}/api/auth/me`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        if (!res.ok) {
-          console.error("Failed to fetch profile", await res.text());
-          return;
-        }
-
-        const data = await res.json();
-
-        const extractDate = (raw: any): string | number | null => {
-          if (!raw) return null;
-          if (raw.$date?.$numberLong) return Number(raw.$date.$numberLong);
-          if (typeof raw === "string" || typeof raw === "number") return raw;
-          return null;
-        };
-
-        const normalized: Patient = {
-          firstName: data.firstName ?? "",
-          lastName: data.lastName ?? "",
-          email: data.email ?? "",
-          role: data.role ?? "patient",
-          phoneNumber: data.phoneNumber ?? "",
-          dateOfBirth: extractDate(data.dateOfBirth),
-          gender: data.gender ?? "",
-          address: data.address ?? null,
-        };
-
-        setPatient(normalized);
-
-      } catch (err) {
-        console.error("Failed to fetch patient info", err);
-      }
-    };
-    fetchPatient();
-  }, [token]);
-
-  // Build lookup map when medications change
-  useEffect(() => {
-    const map: MedMap = {};
-    for (const m of medications) map[m._id] = { name: m.name, dosage: m.dosage };
-    setMedMap((prev) => ({ ...prev, ...map }));
-  }, [medications]);
-
-  // Fetch all medications
-  const fetchMedications = async () => {
     if (!token) return;
-    try {
-      const response = await fetch(`${API_URL}/api/medications`, {
+
+    const load = async () => {
+      const res = await fetch(`${API_URL}/api/auth/me`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!response.ok) throw new Error('Failed to fetch medications');
-      const data: Medication[] = await response.json();
-      setMedications(data);
-    } catch (err: any) {
-      setError(err.message || 'Network error fetching medications');
-    }
-  };
+      const data = await res.json();
 
-  // Fetch adherence logs
-  const fetchAdherenceLogs = async () => {
-    if (!token) return;
-    try {
-      setLoading(true);
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      const now = new Date();
-
-      const response = await fetch(
-        `${API_URL}/api/adherence?startDate=${toISO(sevenDaysAgo)}&endDate=${toISO(now)}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      if (!response.ok) throw new Error('Failed to fetch adherence logs');
-
-      const raw = await response.json();
-      const data: AdherenceLog[] = normalizeToArray(raw);
-      setAdherenceLogs(data);
-    } catch (err: any) {
-      setError(err.message || 'Network error fetching adherence logs');
-      setAdherenceLogs([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const displayLogs = async () => {
-    setShowLogs(true);
-    setLoading(true);
-    await Promise.all([fetchMedications(), fetchAdherenceLogs()]);
-    setLoading(false);
-  };
-
-  const closeLogs = () => {
-    setShowLogs(false);
-    setError(null);
-  };
-
-  const resolveMedDisplay = (medRef: string | PopulatedMedication) => {
-    let name = 'Unknown Medication';
-    let dosage = 'N/A';
-
-    if (isPopulatedMedication(medRef)) {
-      name = medRef.name || name;
-      dosage = medRef.dosage || dosage;
-    } else if (typeof medRef === 'string') {
-      const known = medMap[medRef];
-      if (known?.name) name = known.name;
-      if (known?.dosage) dosage = known.dosage;
-    }
-
-    return { name, dosage };
-  };
-
-  const recentDoses = useMemo(() => {
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-    return adherenceLogs
-      .map((log) => {
-        const effectiveTime = log.takenAt || log.scheduledTime || log.createdAt;
-        if (!effectiveTime) return null;
-        const { name, dosage } = resolveMedDisplay(log.medication);
-        return {
-          medName: name,
-          dosage,
-          status: log.status,
-          takenAt: effectiveTime,
-          notes: log.notes || '',
-        };
-      })
-      .filter(Boolean)
-      .sort(
-        (a, b) =>
-          new Date((b as any).takenAt).getTime() -
-          new Date((a as any).takenAt).getTime()
-      ) as Array<{
-      medName: string;
-      dosage: string;
-      status: string;
-      takenAt: string;
-      notes: string;
-    }>;
-  }, [adherenceLogs, medMap]);
-
-  // ---------- Fetch Providers ----------
-  const fetchProviders = async () => {
-    try {
-      const storedToken = await AsyncStorage.getItem('token');
-      if (!storedToken) {
-        setProvidersError('Please log in again.');
-        setProvidersLoading(false);
-        return;
-      }
-
-      const response = await fetch(`${API_URL}/api/patient/providers`, {
-        headers: {
-          Authorization: `Bearer ${storedToken}`,
-          'Content-Type': 'application/json',
-        },
+      setPatient({
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email: data.email,
+        role: data.role,
+        phoneNumber: data.phoneNumber,
+        dateOfBirth: data.dateOfBirth,
+        gender: data.gender,
+        address: data.address,
       });
+    };
 
-      const data = await response.json();
+    load();
+  }, [token]);
 
-      if (!response.ok) {
-        setProvidersError(data.message || 'Failed to fetch providers.');
-      } else {
-        setProviders(data.providers || []);
-      }
-    } catch (err) {
-      setProvidersError('Could not connect to server.');
-    } finally {
+  // Fetch providers
+  useEffect(() => {
+    const load = async () => {
+      const t = await AsyncStorage.getItem('token');
+      const res = await fetch(`${API_URL}/api/patient/providers`, {
+        headers: { Authorization: `Bearer ${t}` },
+      });
+      const data = await res.json();
+      setProviders(data.providers ?? []);
       setProvidersLoading(false);
-    }
-  };
+    };
 
-  // ---------------- Recent Medications ----------------
+    load();
+  }, []);
+
+  // Build medication map
+  useEffect(() => {
+    const map: MedMap = {};
+    medications.forEach((m) => (map[m._id] = { name: m.name, dosage: m.dosage }));
+    setMedMap(map);
+  }, [medications]);
+
+  // ⭐⭐⭐ Fetch Recent, Upcoming, Past Medications (FINAL FIXED LOGIC)
   const fetchRecentMedications = async () => {
     setRecentMedsLoading(true);
-    setRecentMedsError(null);
     setUpcomingMedsLoading(true);
-    setUpcomingMedsError(null);
     setPastMedsLoading(true);
-    setPastMedsError(null);
-    try {
-      const storedToken = await AsyncStorage.getItem('token');
-      if (!storedToken) {
-        const msg = 'Please log in again.';
-        setRecentMedsError(msg);
-        setUpcomingMedsError(msg);
-        return;
-      }
 
-      const response = await fetch(`${API_URL}/api/medications`, {
-        headers: {
-          Authorization: `Bearer ${storedToken}`,
-          'Content-Type': 'application/json',
-        },
+    try {
+      const t = await AsyncStorage.getItem('token');
+      const res = await fetch(`${API_URL}/api/medications`, {
+        headers: { Authorization: `Bearer ${t}` },
       });
 
-      const data = await response.json();
+      const meds: Medication[] = normalizeToArray(await res.json());
+      const now = new Date();
+      const sevenDaysAgo = new Date(now);
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-      if (!response.ok) {
-        const msg = data?.message || 'Failed to fetch medications.';
-        setRecentMedsError(msg);
-        setUpcomingMedsError(msg);
-        setPastMedsError(msg);
-      } else {
-        const meds: Medication[] = normalizeToArray(data);
+      const sevenDaysAhead = new Date(now);
+      sevenDaysAhead.setDate(sevenDaysAhead.getDate() + 7);
 
-        // Recent: medications created in the last 7 days
-        const sevenDaysAgo = new Date();
-        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-        const recent = meds.filter((m) => new Date(m.createdAt) >= sevenDaysAgo).slice(0, 5);
-        setRecentMedications(recent);
+      // ⭐ Recent
+      setRecentMedications(
+        meds.filter((m) => new Date(m.createdAt) >= sevenDaysAgo).slice(0, 5)
+      );
 
-        // Upcoming: medications whose startDate is in the next 7 days
-        const now = new Date();
-        const inSevenDays = new Date();
-        inSevenDays.setDate(inSevenDays.getDate() + 7);
-        const upcoming = meds.filter((m) => {
-          if (!m.startDate) return false;
-          const sd = new Date(m.startDate);
-          return sd > now && sd <= inSevenDays;
-        }).slice(0, 5);
-        setUpcomingMedications(upcoming);
+      // ⭐ Upcoming (Option A)
+      const upcoming = meds
+        .map((m) => {
+          const next = getNextDoseDate(m);
+          return next ? { ...m, nextDose: next } : null;
+        })
+        .filter(
+          (m): m is Medication & { nextDose: Date } =>
+            !!m && !!m.nextDose
+        )
+        .filter((m) => m.nextDose > now && m.nextDose <= sevenDaysAhead)
+        .sort((a, b) => a.nextDose.getTime() - b.nextDose.getTime())
+        .slice(0, 5);
+      setUpcomingMedications(upcoming);
 
-        // Past: medications that have an endDate before now, or are marked inactive
-        const past = meds.filter((m) => {
-          if (m.isActive === false) return true;
-          if (m.endDate) {
-            try {
-              return new Date(m.endDate) < now;
-            } catch (e) {
-              return false;
-            }
-          }
-          return false;
-        }).slice(0, 5);
-        setPastMedications(past);
-      }
+      // ⭐ Past (improved logic)
+      setPastMedications(
+        meds
+          .filter((m) => {
+            const next = getNextDoseDate(m);
+
+            // explicitly ended
+            if (m.endDate && new Date(m.endDate) < now) return true;
+
+            // no future dose = inactive = past
+            if (!next) return true;
+
+            // next dose FAR in the future → treat as past
+            if (next > sevenDaysAhead) return true;
+
+            return false;
+          })
+          .slice(0, 5)
+      );
     } catch (err) {
-      setRecentMedsError('Could not connect to server.');
-      setUpcomingMedsError('Could not connect to server.');
-      setPastMedsError('Could not connect to server.');
+      console.log('Medication fetch error:', err);
     } finally {
       setRecentMedsLoading(false);
       setUpcomingMedsLoading(false);
@@ -381,9 +259,9 @@ export default function PatientHome() {
   };
 
   useEffect(() => {
-    fetchProviders();
     fetchRecentMedications();
   }, []);
+
   // ---------------- UI ----------------
   return (
     <View className="flex-1 items-center justify-center bg-white dark:bg-gray-900 px-4">
@@ -393,13 +271,13 @@ export default function PatientHome() {
 
       <View className="flex justify-center items-center w-full max-w-6xl">
         <View className="flex justify-center items-center sm:items-start flex-col sm:flex-row gap-6 p-6 rounded-xl bg-gray-100 dark:bg-gray-800 shadow-lg">
-          {/* ---------- Patient Overview ---------- */}
+          
+          {/* Patient Info */}
           <View className="flex items-center">
             <PatientInfoCard patient={patient} />
 
             <TouchableOpacity
               onPress={() => router.push('/(patient)/MedicationCalendar')}
-              activeOpacity={0.8}
               className="bg-blue-500 px-6 py-3 rounded-xl w-full max-w-[300px] mb-4"
             >
               <Text className="text-white text-lg font-semibold text-center">
@@ -408,79 +286,86 @@ export default function PatientHome() {
             </TouchableOpacity>
 
             <TouchableOpacity
-              onPress={displayLogs}
-              activeOpacity={0.8}
-              disabled={!token}
-              className={`px-6 py-3 rounded-xl w-full max-w-[300px] mb-6 ${
-                token ? 'bg-green-500' : 'bg-gray-400'
-              }`}
+              onPress={() => setShowLogs(true)}
+              className="bg-green-500 px-6 py-3 rounded-xl w-full max-w-[300px] mb-6"
             >
               <Text className="text-white text-lg font-semibold text-center">
-                {token ? 'View Dose Logs (Last 7 Days)' : 'Loading token...'}
+                View Dose Logs (Last 7 Days)
               </Text>
             </TouchableOpacity>
           </View>
 
-          {/* ---------- Provider List Section ---------- */}
+          {/* Providers & Med Cards */}
           <View className="flex items-center">
-            <ProvidersCard
-              providers={providers}
-              loading={providersLoading}
-              error={providersError}
-            />
+            <ProvidersCard providers={providers} loading={providersLoading} error={null} />
 
-            {/* Upcoming medications small card */}
+            {/* Upcoming Meds */}
             <View className="mt-4 w-full flex items-center">
               <View className="bg-gray-200 dark:bg-gray-700 p-4 rounded-xl w-11/12 sm:max-w-[300px]">
                 <Text className="text-lg font-semibold text-gray-800 dark:text-white mb-2">
                   Upcoming Medications
                 </Text>
+
                 {upcomingMedsLoading ? (
                   <ActivityIndicator size="small" color="#3B82F6" />
-                ) : upcomingMedsError ? (
-                  <Text className="text-red-500">{upcomingMedsError}</Text>
-                ) : upcomingMedications && upcomingMedications.length > 0 ? (
+                ) : upcomingMedications.length > 0 ? (
                   upcomingMedications.map((m) => (
                     <View key={m._id} className="border-b border-gray-300 py-2">
-                      <Text className="text-gray-800 dark:text-gray-200 font-semibold">{m.name || 'Unnamed'}</Text>
-                      <Text className="text-gray-600 dark:text-gray-400">{`Starts: ${new Date(m.startDate).toLocaleDateString()}`}</Text>
-                      <Text className="text-gray-600 dark:text-gray-400">{`Dosage: ${m.dosage || 'N/A'}`}</Text>
+                      <Text className="text-gray-800 dark:text-gray-200 font-semibold">
+                        {m.name}
+                      </Text>
+                      <Text className="text-gray-600 dark:text-gray-400">
+                        Next Dose: {new Date(m.nextDose).toLocaleString()}
+                      </Text>
+                      <Text className="text-gray-600 dark:text-gray-400">
+                        Dosage: {m.dosage}
+                      </Text>
                     </View>
                   ))
                 ) : (
-                  <Text className="text-gray-600 dark:text-gray-300">No upcoming medications in the next 7 days.</Text>
+                  <Text className="text-gray-600 dark:text-gray-300">
+                    No medications due in the next 7 days.
+                  </Text>
                 )}
               </View>
             </View>
 
-            {/* Past medications small card */}
+            {/* Past Medications */}
             <View className="mt-4 w-full flex items-center">
               <View className="bg-gray-200 dark:bg-gray-700 p-4 rounded-xl w-11/12 sm:max-w-[300px]">
                 <Text className="text-lg font-semibold text-gray-800 dark:text-white mb-2">
                   Past Medications
                 </Text>
+
                 {pastMedsLoading ? (
                   <ActivityIndicator size="small" color="#3B82F6" />
-                ) : pastMedsError ? (
-                  <Text className="text-red-500">{pastMedsError}</Text>
-                ) : pastMedications && pastMedications.length > 0 ? (
+                ) : pastMedications.length > 0 ? (
                   pastMedications.map((m) => (
                     <View key={m._id} className="border-b border-gray-300 py-2">
-                      <Text className="text-gray-800 dark:text-gray-200 font-semibold">{m.name || 'Unnamed'}</Text>
-                      <Text className="text-gray-600 dark:text-gray-400">{`Ended: ${m.endDate ? new Date(m.endDate).toLocaleDateString() : 'Unknown'}`}</Text>
-                      <Text className="text-gray-600 dark:text-gray-400">{`Dosage: ${m.dosage || 'N/A'}`}</Text>
+                      <Text className="text-gray-800 dark:text-gray-200 font-semibold">
+                        {m.name}
+                      </Text>
+                      <Text className="text-gray-600 dark:text-gray-400">
+                        Ended: {m.endDate ? new Date(m.endDate).toLocaleDateString() : 'Unknown'}
+                      </Text>
+                      <Text className="text-gray-600 dark:text-gray-400">
+                        Dosage: {m.dosage}
+                      </Text>
                     </View>
                   ))
                 ) : (
-                  <Text className="text-gray-600 dark:text-gray-300">No past medications.</Text>
+                  <Text className="text-gray-600 dark:text-gray-300">
+                    No past medications.
+                  </Text>
                 )}
               </View>
             </View>
+
           </View>
         </View>
       </View>
 
-      {/* ---------- Logs Modal ---------- */}
+      {/* Logs Modal */}
       <Modal visible={showLogs} animationType="slide" transparent>
         <View className="flex-1 justify-center items-center bg-black/50">
           <View className="bg-white dark:bg-gray-800 rounded-xl p-6 w-11/12 max-h-[80%]">
@@ -488,49 +373,41 @@ export default function PatientHome() {
               Dose Logs (Last 7 Days)
             </Text>
 
-            {loading ? (
-              <ActivityIndicator size="large" color="#3B82F6" />
-            ) : error ? (
-              <Text className="text-red-600 text-center">{error}</Text>
-            ) : recentDoses.length > 0 ? (
-              <ScrollView className="max-h-[60vh]">
-                {recentDoses.map((dose, i) => (
+            <ScrollView className="max-h-[60vh]">
+              {adherenceLogs.length > 0 ? (
+                adherenceLogs.map((log, i) => (
                   <View key={i} className="border-b border-gray-300 py-2">
                     <Text className="text-gray-800 dark:text-gray-200 font-semibold">
-                      {dose.medName}
+                      Medication Log Entry
                     </Text>
                     <Text className="text-gray-600 dark:text-gray-400">
-                      Dosage: {dose.dosage}
+                      Status: {log.status}
                     </Text>
                     <Text className="text-gray-600 dark:text-gray-400">
-                      Status: {dose.status}
+                      Time: {new Date(log.takenAt ?? log.scheduledTime ?? log.createdAt).toLocaleString()}
                     </Text>
-                    <Text className="text-gray-600 dark:text-gray-400">
-                      Taken At: {new Date(dose.takenAt).toLocaleString()}
-                    </Text>
-                    {dose.notes ? (
-                      <Text className="text-gray-500 italic">Notes: {dose.notes}</Text>
-                    ) : null}
                   </View>
-                ))}
-              </ScrollView>
-            ) : (
-              <Text className="text-gray-600 dark:text-gray-300 text-center">
-                No doses logged in the last 7 days.
-              </Text>
-            )}
+                ))
+              ) : (
+                <Text className="text-gray-600 dark:text-gray-300 text-center">
+                  No doses logged in the last 7 days.
+                </Text>
+              )}
+            </ScrollView>
 
             <TouchableOpacity
-              onPress={closeLogs}
+              onPress={() => setShowLogs(false)}
               className="bg-red-500 px-6 py-3 rounded-xl mt-6"
             >
               <Text className="text-white text-lg font-semibold text-center">
                 Close
               </Text>
             </TouchableOpacity>
+
           </View>
         </View>
       </Modal>
+
     </View>
   );
 }

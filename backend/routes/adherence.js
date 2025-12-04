@@ -1,34 +1,46 @@
 const express = require('express');
 const router = express.Router();
+
 const {
   logAdherence,
   getAdherenceLogs,
   getAdherenceStats,
   getAdherenceReport,
-  getAdherenceTrends,   // ✅ NEW
+  getAdherenceTrends,
   updateAdherenceLog,
   deleteAdherenceLog
 } = require('../controllers/adherenceController');
+
 const { protect } = require('../middleware/auth');
 
-// Create + list logs
+// -------------------------------------------
+// CREATE LOG + GET LOGS
+// -------------------------------------------
 router.route('/')
   .post(protect, logAdherence)
   .get(protect, getAdherenceLogs);
 
-// High-level stats (status breakdown)
+// -------------------------------------------
+// OVERALL STATS (Patient or Provider Summary)
+// -------------------------------------------
 router.route('/stats')
   .get(protect, getAdherenceStats);
 
-// Provider reports (per-patient summary, with filters)
+// -------------------------------------------
+// PROVIDER REPORTS (REQUIRES PROVIDER ROLE)
+// -------------------------------------------
 router.route('/report')
   .get(protect, getAdherenceReport);
 
-// ✅ NEW: Provider time-series trends
+// -------------------------------------------
+// PROVIDER-ONLY TRENDS (TIME SERIES)
+// -------------------------------------------
 router.route('/trends')
   .get(protect, getAdherenceTrends);
 
-// Update / delete a specific log
+// -------------------------------------------
+// UPDATE / DELETE SPECIFIC LOG ENTRY
+// -------------------------------------------
 router.route('/:id')
   .put(protect, updateAdherenceLog)
   .delete(protect, deleteAdherenceLog);
