@@ -108,3 +108,231 @@ exports.getMe = async (req, res) => {
         res.status(500).json({ message: 'Server error', error: error.message });
     }
 };
+
+// @desc    Get all users (Admin only)
+// @route   GET /api/auth/users
+// @access  Private (Admin only)
+exports.getAllUsers = async (req, res) => {
+    try {
+        // Check if user is admin (should be checked by authorize middleware, but double-check)
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({ message: 'Access denied: Admin access required' });
+        }
+
+        // Get all users, excluding password field
+        const users = await User.find({}).select('-password').sort({ createdAt: -1 });
+
+        // Format users for response
+        const formattedUsers = users.map(user => ({
+            _id: user._id,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            email: user.email,
+            role: user.role,
+            phoneNumber: user.phoneNumber,
+            dateOfBirth: user.dateOfBirth,
+            gender: user.gender,
+            address: user.address,
+            isActive: user.isActive,
+            createdAt: user.createdAt,
+            patientCount: user.role === 'provider' ? (user.patients?.length || 0) : null,
+            providerCount: user.role === 'patient' ? (user.provider?.length || 0) : null
+        }));
+
+        res.status(200).json({
+            success: true,
+            count: formattedUsers.length,
+            users: formattedUsers
+        });
+    } catch (error) {
+        console.error('Error fetching all users:', error);
+        res.status(500).json({ message: 'Server error while fetching users', error: error.message });
+    }
+};
+
+// @desc    Get admin dashboard statistics (Admin only)
+// @route   GET /api/auth/stats
+// @access  Private (Admin only)
+exports.getAdminStats = async (req, res) => {
+    try {
+        // Check if user is admin
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({ message: 'Access denied: Admin access required' });
+        }
+
+        const Medication = require('../models/Medication');
+        const AdherenceLog = require('../models/AdherenceLog');
+
+        // Get user counts by role
+        const totalUsers = await User.countDocuments({});
+        const adminCount = await User.countDocuments({ role: 'admin' });
+        const providerCount = await User.countDocuments({ role: 'provider' });
+        const patientCount = await User.countDocuments({ role: 'patient' });
+        const activeUsers = await User.countDocuments({ isActive: true });
+        const inactiveUsers = await User.countDocuments({ isActive: false });
+
+        // Get medication statistics
+        const totalMedications = await Medication.countDocuments({});
+        const activeMedications = await Medication.countDocuments({ isActive: true });
+        const inactiveMedications = await Medication.countDocuments({ isActive: false });
+
+        // Get adherence statistics
+        const totalAdherenceLogs = await AdherenceLog.countDocuments({});
+        const takenLogs = await AdherenceLog.countDocuments({ status: 'taken' });
+        const missedLogs = await AdherenceLog.countDocuments({ status: 'missed' });
+        const skippedLogs = await AdherenceLog.countDocuments({ status: 'skipped' });
+        const pendingLogs = await AdherenceLog.countDocuments({ status: 'pending' });
+
+        // Calculate adherence rate
+        const adherenceRate = totalAdherenceLogs > 0 
+            ? ((takenLogs / totalAdherenceLogs) * 100).toFixed(1) 
+            : 0;
+
+        // Get recent users (last 7 days)
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        const recentUsers = await User.countDocuments({ createdAt: { $gte: sevenDaysAgo } });
+
+        // Get providers with patients
+        const providersWithPatients = await User.countDocuments({
+            role: 'provider',
+            patients: { $exists: true, $ne: [] }
+        });
+
+        // Get patients with providers
+        const patientsWithProviders = await User.countDocuments({
+            role: 'patient',
+            provider: { $exists: true, $ne: [] }
+        });
+
+        res.status(200).json({
+            success: true,
+            stats: {
+                users: {
+                    total: totalUsers,
+                    admins: adminCount,
+                    providers: providerCount,
+                    patients: patientCount,
+                    active: activeUsers,
+                    inactive: inactiveUsers,
+                    recent: recentUsers
+                },
+                medications: {
+                    total: totalMedications,
+                    active: activeMedications,
+                    inactive: inactiveMedications
+                },
+                adherence: {
+                    total: totalAdherenceLogs,
+                    taken: takenLogs,
+                    missed: missedLogs,
+                    skipped: skippedLogs,
+                    pending: pendingLogs,
+                    rate: parseFloat(adherenceRate)
+                },
+                relationships: {
+                    providersWithPatients: providersWithPatients,
+                    patientsWithProviders: patientsWithProviders
+                }
+            }
+        });
+    } catch (error) {
+        console.error('Error fetching admin stats:', error);
+        res.status(500).json({ message: 'Server error while fetching statistics', error: error.message });
+    }
+};
+
+// @desc    Get user by ID (Admin only)
+// @route   GET /api/auth/users/:id
+// @access  Private (Admin only)
+exports.getUserById = async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({ message: 'Access denied: Admin access required' });
+        }
+
+        const user = await User.findById(req.params.id).select('-password');
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        res.status(200).json({
+            success: true,
+            user: {
+                _id: user._id,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                email: user.email,
+                role: user.role,
+                phoneNumber: user.phoneNumber,
+                dateOfBirth: user.dateOfBirth,
+                gender: user.gender,
+                address: user.address,
+                isActive: user.isActive,
+                createdAt: user.createdAt
+            }
+        });
+    } catch (error) {
+        console.error('Error fetching user:', error);
+        res.status(500).json({ message: 'Server error while fetching user', error: error.message });
+    }
+};
+
+// @desc    Update user (Admin only)
+// @route   PUT /api/auth/users/:id
+// @access  Private (Admin only)
+exports.updateUser = async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({ message: 'Access denied: Admin access required' });
+        }
+
+        const { firstName, lastName, email, phoneNumber, dateOfBirth, gender, address, role, isActive } = req.body;
+
+        const user = await User.findById(req.params.id);
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        // Check if email is being changed and if it's already taken
+        if (email && email !== user.email) {
+            const emailExists = await User.findOne({ email: email.toLowerCase() });
+            if (emailExists) {
+                return res.status(400).json({ message: 'Email already in use' });
+            }
+        }
+
+        // Update fields
+        if (firstName) user.firstName = firstName;
+        if (lastName) user.lastName = lastName;
+        if (email) user.email = email.toLowerCase();
+        if (phoneNumber) user.phoneNumber = phoneNumber;
+        if (dateOfBirth) user.dateOfBirth = dateOfBirth;
+        if (gender) user.gender = gender;
+        if (address) user.address = address;
+        if (role) user.role = role;
+        if (typeof isActive === 'boolean') user.isActive = isActive;
+
+        await user.save();
+
+        res.status(200).json({
+            success: true,
+            message: 'User updated successfully',
+            user: {
+                _id: user._id,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                email: user.email,
+                role: user.role,
+                phoneNumber: user.phoneNumber,
+                dateOfBirth: user.dateOfBirth,
+                gender: user.gender,
+                address: user.address,
+                isActive: user.isActive
+            }
+        });
+    } catch (error) {
+        console.error('Error updating user:', error);
+        res.status(500).json({ message: 'Server error while updating user', error: error.message });
+    }
+};
