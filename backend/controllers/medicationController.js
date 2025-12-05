@@ -162,3 +162,36 @@ exports.deleteMedication = async (req, res) => {
         res.status(500).json({message: 'Server error', error: error.message});
     }
 };
+
+exports.toggleReminder = async (req, res) => {
+  try {
+    const medId = req.params.id;
+    const userId = req.user._id;
+
+    const medication = await Medication.findOne({
+      _id: medId,
+      patient: userId,
+    });
+
+    if (!medication) {
+      return res
+        .status(404)
+        .json({ message: 'Medication not found or not owned by this patient.' });
+    }
+
+    medication.reminderEnabled = !medication.reminderEnabled;
+    await medication.save();
+
+    return res.json({
+      message: medication.reminderEnabled
+        ? 'Smart reminders have been enabled for this medication.'
+        : 'Smart reminders have been disabled for this medication.',
+      reminderEnabled: medication.reminderEnabled,
+    });
+  } catch (err) {
+    console.error('toggleReminder error:', err);
+    return res
+      .status(500)
+      .json({ message: 'Failed to toggle reminder setting.' });
+  }
+};
