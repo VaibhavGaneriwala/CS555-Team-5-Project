@@ -19,6 +19,7 @@ app.use('/api/medications', require('./routes/medications'));
 app.use('/api/patient', require('./routes/patient'));
 app.use('/api/adherence', require('./routes/adherence'));
 app.use('/api/admin', require('./routes/admin'));
+app.use('/api/adherence-prediction', require('./routes/adherencePrediction'));
 
 const chatRoutes = require('./routes/chatRoutes');
 app.use('/api/chat', chatRoutes);
