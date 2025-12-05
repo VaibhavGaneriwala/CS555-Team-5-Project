@@ -89,8 +89,6 @@ exports.getAdherenceLogs = async (req, res) => {
   }
 };
 
-
-
 /**
  * Basic adherence statistics
  */

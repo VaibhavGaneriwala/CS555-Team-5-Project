@@ -1,8 +1,8 @@
 // ================================================
-// FINAL FIXED PatientHome.tsx  (FULL WORKING FILE)
+// FINAL PatientHome.tsx (FULL WORKING + AI CHATBOT)
 // ================================================
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -79,49 +79,34 @@ const normalizeToArray = (raw: any) => {
 const isPopulatedMedication = (m: any): m is PopulatedMedication =>
   m && typeof m === 'object' && '_id' in m;
 
-const toISO = (d: Date) => d.toISOString();
-
-// ⭐⭐⭐ Option A — Compute Next Dose
-function getNextDoseDate(med: Medication): Date | null {
+const getNextDoseDate = (med: Medication): Date | null => {
   try {
     const now = new Date();
     const start = new Date(med.startDate);
-
-    // If medication hasn't started yet → Next dose is start date
     if (now < start) return start;
 
     const freq = med.frequency?.toLowerCase() || '';
     const next = new Date(now);
 
-    // Daily
-    if (freq.includes('daily') && !freq.includes('twice')) {
-      next.setDate(now.getDate() + 1);
-    }
-    // Twice daily
-    else if (freq.includes('twice') || freq.includes('2 times')) {
-      next.setHours(now.getHours() + 12);
-    }
-    // Every X hours
+    if (freq.includes('daily') && !freq.includes('twice')) next.setDate(now.getDate() + 1);
+    else if (freq.includes('twice') || freq.includes('2 times')) next.setHours(now.getHours() + 12);
     else if (freq.includes('every')) {
       const hours = parseInt(freq.replace(/\D/g, ''));
       if (!isNaN(hours)) next.setHours(now.getHours() + hours);
       else next.setDate(now.getDate() + 1);
-    }
-    // Fallback → Daily
-    else next.setDate(now.getDate() + 1);
+    } else next.setDate(now.getDate() + 1);
 
     return next;
   } catch {
     return null;
   }
-}
+};
 
 // ---------------- Component ----------------
 
 export default function PatientHome() {
   const [patient, setPatient] = useState<Patient | null>(null);
   const [medications, setMedications] = useState<Medication[]>([]);
-  const [medMap, setMedMap] = useState<MedMap>({});
   const [adherenceLogs, setAdherenceLogs] = useState<AdherenceLog[]>([]);
   const [showLogs, setShowLogs] = useState(false);
   const [token, setToken] = useState<string | null>(null);
@@ -152,17 +137,7 @@ export default function PatientHome() {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
-
-      setPatient({
-        firstName: data.firstName,
-        lastName: data.lastName,
-        email: data.email,
-        role: data.role,
-        phoneNumber: data.phoneNumber,
-        dateOfBirth: data.dateOfBirth,
-        gender: data.gender,
-        address: data.address,
-      });
+      setPatient(data);
     };
 
     load();
@@ -183,14 +158,7 @@ export default function PatientHome() {
     load();
   }, []);
 
-  // Build medication map
-  useEffect(() => {
-    const map: MedMap = {};
-    medications.forEach((m) => (map[m._id] = { name: m.name, dosage: m.dosage }));
-    setMedMap(map);
-  }, [medications]);
-
-  // ⭐⭐⭐ Fetch Recent, Upcoming, Past Medications (FINAL FIXED LOGIC)
+  // Fetch medications (Recent, Upcoming, Past)
   const fetchRecentMedications = async () => {
     setRecentMedsLoading(true);
     setUpcomingMedsLoading(true);
@@ -204,47 +172,39 @@ export default function PatientHome() {
 
       const meds: Medication[] = normalizeToArray(await res.json());
       const now = new Date();
+
       const sevenDaysAgo = new Date(now);
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      sevenDaysAgo.setDate(now.getDate() - 7);
 
       const sevenDaysAhead = new Date(now);
-      sevenDaysAhead.setDate(sevenDaysAhead.getDate() + 7);
+      sevenDaysAhead.setDate(now.getDate() + 7);
 
-      // ⭐ Recent
+      // Recent
       setRecentMedications(
         meds.filter((m) => new Date(m.createdAt) >= sevenDaysAgo).slice(0, 5)
       );
 
-      // ⭐ Upcoming (Option A)
+      // Upcoming
       const upcoming = meds
         .map((m) => {
           const next = getNextDoseDate(m);
           return next ? { ...m, nextDose: next } : null;
         })
-        .filter(
-          (m): m is Medication & { nextDose: Date } =>
-            !!m && !!m.nextDose
-        )
+        .filter((m): m is Medication & { nextDose: Date } => !!m)
         .filter((m) => m.nextDose > now && m.nextDose <= sevenDaysAhead)
         .sort((a, b) => a.nextDose.getTime() - b.nextDose.getTime())
         .slice(0, 5);
+
       setUpcomingMedications(upcoming);
 
-      // ⭐ Past (improved logic)
+      // Past
       setPastMedications(
         meds
           .filter((m) => {
             const next = getNextDoseDate(m);
-
-            // explicitly ended
             if (m.endDate && new Date(m.endDate) < now) return true;
-
-            // no future dose = inactive = past
             if (!next) return true;
-
-            // next dose FAR in the future → treat as past
             if (next > sevenDaysAhead) return true;
-
             return false;
           })
           .slice(0, 5)
@@ -272,10 +232,11 @@ export default function PatientHome() {
       <View className="flex justify-center items-center w-full max-w-6xl">
         <View className="flex justify-center items-center sm:items-start flex-col sm:flex-row gap-6 p-6 rounded-xl bg-gray-100 dark:bg-gray-800 shadow-lg">
           
-          {/* Patient Info */}
+          {/* Patient Info Section */}
           <View className="flex items-center">
             <PatientInfoCard patient={patient} />
 
+            {/* Calendar */}
             <TouchableOpacity
               onPress={() => router.push('/(patient)/MedicationCalendar')}
               className="bg-blue-500 px-6 py-3 rounded-xl w-full max-w-[300px] mb-4"
@@ -285,21 +246,32 @@ export default function PatientHome() {
               </Text>
             </TouchableOpacity>
 
+            {/* Logs */}
             <TouchableOpacity
               onPress={() => setShowLogs(true)}
-              className="bg-green-500 px-6 py-3 rounded-xl w-full max-w-[300px] mb-6"
+              className="bg-green-500 px-6 py-3 rounded-xl w-full max-w-[300px] mb-4"
             >
               <Text className="text-white text-lg font-semibold text-center">
                 View Dose Logs (Last 7 Days)
               </Text>
             </TouchableOpacity>
+
+            {/* ⭐ AI Chatbot Button */}
+            <TouchableOpacity
+              onPress={() => router.push('/(patient)/Chatbot')}
+              className="bg-purple-600 px-6 py-3 rounded-xl w-full max-w-[300px] mb-4"
+            >
+              <Text className="text-white text-lg font-semibold text-center">
+                Chat with MedAssist (AI)
+              </Text>
+            </TouchableOpacity>
           </View>
 
-          {/* Providers & Med Cards */}
+          {/* Providers + Medication Cards */}
           <View className="flex items-center">
             <ProvidersCard providers={providers} loading={providersLoading} error={null} />
 
-            {/* Upcoming Meds */}
+            {/* Upcoming Medications */}
             <View className="mt-4 w-full flex items-center">
               <View className="bg-gray-200 dark:bg-gray-700 p-4 rounded-xl w-11/12 sm:max-w-[300px]">
                 <Text className="text-lg font-semibold text-gray-800 dark:text-white mb-2">
@@ -360,8 +332,8 @@ export default function PatientHome() {
                 )}
               </View>
             </View>
-
           </View>
+
         </View>
       </View>
 
@@ -403,7 +375,6 @@ export default function PatientHome() {
                 Close
               </Text>
             </TouchableOpacity>
-
           </View>
         </View>
       </Modal>

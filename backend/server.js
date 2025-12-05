@@ -20,6 +20,9 @@ app.use('/api/patient', require('./routes/patient'));
 app.use('/api/adherence', require('./routes/adherence'));
 app.use('/api/admin', require('./routes/admin'));
 
+const chatRoutes = require('./routes/chatRoutes');
+app.use('/api/chat', chatRoutes);
+
 const port = process.env.PORT
 
 // Default to home route
