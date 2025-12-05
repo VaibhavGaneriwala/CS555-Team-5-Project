@@ -1,14 +1,16 @@
 const express = require("express");
 const router = express.Router();
+
 const reminderScheduler = require("../utils/reminderScheduler");
-const auth = require("../middleware/auth");
+const { protect } = require("../middleware/auth");  // <-- FIXED
 
 // Enable smart reminders for the logged-in patient
-router.post("/enable", auth, async (req, res) => {
+router.post("/enable", protect, async (req, res) => {
   try {
     const userId = req.user._id;
 
-    // Trigger your reminder scheduler logic
+    console.log("Scheduling reminders for:", userId);
+
     await reminderScheduler.scheduleDailyReminders(userId);
 
     res.json({
