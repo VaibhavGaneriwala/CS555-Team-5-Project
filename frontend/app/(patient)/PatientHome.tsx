@@ -46,6 +46,8 @@ interface AdherenceLog {
   takenAt?: string;
   scheduledTime?: string;
   createdAt: string;
+  medicationName?: string
+  dosage?: string;
 }
 
 interface Medication {
@@ -249,7 +251,33 @@ export default function PatientHome() {
     setLogsLoading(true);
     setLogsError(null);
 
-    const response = await fetch(`${API_URL}/api/medications`, {
+    //
+    // ----------------------------------------------------
+    // 1. FETCH medications (only once OR if meds are empty)
+    // ----------------------------------------------------
+    //
+    let medsList = medications;
+
+    if (!medications || medications.length === 0) {
+      const medsRes = await fetch(`${API_URL}/api/medications`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!medsRes.ok) {
+        setLogsError("Failed to load medications.");
+        return;
+      }
+
+      medsList = normalizeToArray(await medsRes.json());
+      setMedications(medsList); // cache for future use
+    }
+
+    //
+    // ----------------------------------------------------
+    // 2. FETCH logs (last 7 days of medication "entries")
+    // ----------------------------------------------------
+    //
+    const logsRes = await fetch(`${API_URL}/api/medications`, {
       method: "GET",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -257,51 +285,75 @@ export default function PatientHome() {
       },
     });
 
-    if (!response.ok) {
+    if (!logsRes.ok) {
       let body: any;
       try {
-        body = await response.json();
+        body = await logsRes.json();
       } catch {
-        body = await response.text();
+        body = await logsRes.text();
       }
 
-      const message =
+      const msg =
         typeof body === "string"
           ? body
           : body?.message ?? JSON.stringify(body);
 
-      setLogsError(`Failed to fetch medications: ${message}`);
+      setLogsError(`Failed to fetch logs: ${msg}`);
       return;
     }
 
-    const data = normalizeToArray(await response.json());
+    const rawLogs = normalizeToArray(await logsRes.json());
 
-    // Filter: last 7 days
+    //
+    // ----------------------------------------------------
+    // 3. FILTER: Only logs from the last 7 days
+    // ----------------------------------------------------
+    //
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-    const recentLogs = data.filter((med: any) => {
-      const timestamp = new Date(med.createdAt);
-      return timestamp >= sevenDaysAgo;
+    const recentLogs = rawLogs.filter((log: any) => {
+      const ts = new Date(log.createdAt);
+      return ts >= sevenDaysAgo;
     });
 
-    // Map to adherence log format
-    const mappedLogs: AdherenceLog[] = recentLogs.map((med: any) => ({
-      _id: med._id,
-      status: "Taken",      // Medications were logged as taken
-      createdAt: med.createdAt,
-      takenAt: med.createdAt,
-      scheduledTime: null,
-    }));
+    //
+    // ----------------------------------------------------
+    // 4. MERGE logs with medication info
+    // ----------------------------------------------------
+    //
+    const mergedLogs: AdherenceLog[] = recentLogs.map((log: any) => {
+      const med = medsList.find((m) => m._id === log._id);
 
-    setAdherenceLogs(mappedLogs);
+      return {
+        _id: log._id,
+        status: "Taken",
+        createdAt: log.createdAt,
+        takenAt: log.createdAt,
+        scheduledTime: null,
+        medicationName: med?.name ?? "Unknown Medication",
+        dosage: med?.dosage ?? "N/A",
+      };
+    });
+
+    //
+    // ----------------------------------------------------
+    // 5. SORT logs newest → oldest
+    // ----------------------------------------------------
+    //
+    mergedLogs.sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+
+    setAdherenceLogs(mergedLogs);
   } catch (err: any) {
-    console.error("fetchDoseLogs error", err);
+    console.error("fetchDoseLogs error:", err);
     setLogsError(err?.message ?? "Network error while fetching logs");
   } finally {
     setLogsLoading(false);
   }
 };
+
 
 
   // Open modal + load logs
@@ -382,7 +434,7 @@ export default function PatientHome() {
               </View>
             </>
           ) : (
-            <Text className="text-yellow-200">
+            <Text className="text-gray-800 dark:text-yellow-200">
               No prediction available.
             </Text>
           )}
@@ -428,7 +480,7 @@ export default function PatientHome() {
             className="flex-1 bg-green-600 py-4 rounded-2xl shadow-md"
           >
             <Text className="text-white text-center text-lg font-semibold">
-              View Dose Logs (Last 7 Days)
+              View Medication Logs (Last 7 Days)
             </Text>
           </TouchableOpacity>
 
@@ -465,7 +517,11 @@ export default function PatientHome() {
                     renderItem={({ item }) => (
                       <View className="border-b border-gray-300 py-2">
                         <Text className="text-gray-900 dark:text-gray-200 font-semibold">
-                          Medication Log Entry
+                          {item.medicationName}
+                        </Text>
+
+                        <Text className="text-gray-700 dark:text-gray-400">
+                          Dosage: {item.dosage}
                         </Text>
                         <Text className="text-gray-700 dark:text-gray-400">
                           Status: {item.status}
