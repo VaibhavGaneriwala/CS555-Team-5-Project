@@ -236,8 +236,8 @@ export default function PatientHome() {
   // -------------------------------------------------
 
   return (
-    <ScrollView className="flex-1 bg-gray-900 px-4 pt-10">
-      <Text className="text-3xl font-bold text-white text-center mb-6">
+    <ScrollView className="flex-1 bg-gray-50 dark:bg-gray-900 px-4 pt-10">
+      <Text className="text-3xl font-bold text-gray-900 dark:text-white text-center mb-6">
         Patient Dashboard
       </Text>
 
@@ -247,12 +247,12 @@ export default function PatientHome() {
         <View className="flex-col md:flex-row gap-6">
 
           {/* Patient Info */}
-          <View className="flex-1 bg-gray-800 p-6 rounded-2xl shadow-lg border border-gray-700">
+          <View className="flex-1 bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700">
             <PatientInfoCard patient={patient} />
           </View>
 
           {/* Providers */}
-          <View className="flex-1 bg-gray-800 p-6 rounded-2xl shadow-lg border border-gray-700">
+          <View className="flex-1 bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700">
             <ProvidersCard
               providers={providers}
               loading={providersLoading}
@@ -264,7 +264,7 @@ export default function PatientHome() {
 
         {/* AI Prediction Card */}
         <View className="mt-6 bg-yellow-600/40 border border-yellow-700 p-5 rounded-2xl shadow-lg">
-          <Text className="text-xl font-semibold text-yellow-200 mb-2">
+          <Text className="text-xl font-semibold text-gray-900 dark:text-yellow-200 mb-2">
             ⚠️ Dose Adherence Insight
           </Text>
 
@@ -272,7 +272,7 @@ export default function PatientHome() {
             <ActivityIndicator size="small" color="#fff" />
           ) : prediction?.recommendations ? (
             <>
-              <Text className="text-yellow-100 mb-4">
+              <Text className="text-gray-800 dark:text-yellow-100 mb-4">
                 {prediction.recommendations[0]}
               </Text>
 
@@ -304,8 +304,8 @@ export default function PatientHome() {
         </View>
 
         {/* UPCOMING MEDS */}
-        <View className="mt-6 bg-gray-800 p-6 rounded-2xl shadow-lg border border-gray-700">
-          <Text className="text-xl font-semibold text-white mb-3">
+        <View className="mt-6 bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700">
+          <Text className="text-xl font-semibold text-gray-900 dark:text-white mb-3">
             Upcoming Medications
           </Text>
 
@@ -313,16 +313,16 @@ export default function PatientHome() {
             <ActivityIndicator size="small" color="#fff" />
           ) : upcomingMedications.length > 0 ? (
             upcomingMedications.map((m) => (
-              <View key={m._id} className="mb-4 pb-3 border-b border-gray-700">
-                <Text className="text-white font-semibold">{m.name}</Text>
-                <Text className="text-gray-400">
+              <View key={m._id} className="mb-4 pb-3 border-b border-gray-200 dark:border-gray-700">
+                <Text className="text-gray-900 dark:text-white font-semibold">{m.name}</Text>
+                <Text className="text-gray-600 dark:text-gray-400">
                   Next Dose: {new Date(m.nextDose).toLocaleString()}
                 </Text>
-                <Text className="text-gray-400">Dosage: {m.dosage}</Text>
+                <Text className="text-gray-600 dark:text-gray-400">Dosage: {m.dosage}</Text>
               </View>
             ))
           ) : (
-            <Text className="text-gray-400">No upcoming medications.</Text>
+            <Text className="text-gray-600 dark:text-gray-400">No upcoming medications.</Text>
           )}
         </View>
 

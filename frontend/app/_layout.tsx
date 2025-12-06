@@ -1,30 +1,29 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { DarkTheme, DefaultTheme, ThemeProvider as NavigationThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import * as SplashScreen from 'expo-splash-screen';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import {
   View,
-  useColorScheme as rnUseColorScheme,
   Platform,
   StatusBar,
-  Appearance,
 } from 'react-native';
+
 import 'react-native-reanimated';
 import '@/global.css';
 
 import ThemeToggle from '@/components/ThemeToggle';
 
-// ✅ Android system bar customization
+// NativeWind (v4)
+import { useColorScheme as useNativeWindColorScheme } from "nativewind";
+
+// Android UI control
 import * as SystemUI from 'expo-system-ui';
 import * as NavigationBar from 'expo-navigation-bar';
 
-// ✅ Optional persistence
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
-// ✅ Global notification handler
+// Notification handler
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
@@ -41,9 +40,12 @@ export const unstable_settings = {
   initialRouteName: 'index',
 };
 
-// Prevent splash screen from auto-hiding
+// Keep splash screen visible until fonts loaded
 SplashScreen.preventAutoHideAsync();
 
+// ======================================================
+// ROOT: Load fonts, wrap with NativeWind theme auto-handler
+// ======================================================
 export default function RootLayout() {
   const [loaded, error] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
@@ -60,66 +62,40 @@ export default function RootLayout() {
 
   if (!loaded) return null;
 
+  // NO ThemeProvider needed for NativeWind v4
   return <RootLayoutNav />;
 }
 
+// ======================================================
+// MAIN NAV + UI WRAPPER WITH NativeWind THEME
+// ======================================================
 function RootLayoutNav() {
-  const systemScheme = rnUseColorScheme();
-  const [manualTheme, setManualTheme] = useState<'light' | 'dark' | null>(null);
+  const { colorScheme } = useNativeWindColorScheme();
+  const isDark = colorScheme === "dark";
 
-  // ✅ Load persisted theme
+  // Sync system UI: status bar + Android nav
   useEffect(() => {
-    (async () => {
-      const stored = await AsyncStorage.getItem('theme');
-      if (stored) setManualTheme(stored as 'light' | 'dark');
-    })();
-  }, []);
+    StatusBar.setBarStyle(isDark ? "light-content" : "dark-content");
 
-  const handleThemeChange = (newTheme: 'light' | 'dark') => {
-    setManualTheme(newTheme);
-    AsyncStorage.setItem('theme', newTheme);
-  };
-
-  const effectiveTheme = manualTheme || systemScheme || 'light';
-  const isDark = effectiveTheme === 'dark';
-
-  // ✅ Sync dark mode for NativeWind + Web
-  useEffect(() => {
-    // 🔹 Force NativeWind to apply correct theme (v4.2+)
-    Appearance.setColorScheme?.(effectiveTheme as 'light' | 'dark');
-
-    // 🔹 Web DOM sync
-    if (Platform.OS === 'web') {
-      const root = document.documentElement;
-      root.setAttribute('data-theme', effectiveTheme);
-      root.classList.toggle('dark', effectiveTheme === 'dark');
+    if (Platform.OS === "android") {
+      const bg = isDark ? "#0d1117" : "#ffffff";
+      SystemUI.setBackgroundColorAsync(bg);
+      NavigationBar.setBackgroundColorAsync(bg);
+      NavigationBar.setButtonStyleAsync(isDark ? "light" : "dark");
     }
-  }, [effectiveTheme]);
-
-  // ✅ Apply system UI theme effects for mobile
-  useEffect(() => {
-    if (Platform.OS !== 'web') {
-      StatusBar.setBarStyle(isDark ? 'light-content' : 'dark-content', true);
-
-      if (Platform.OS === 'android') {
-        SystemUI.setBackgroundColorAsync(isDark ? '#0d1117' : '#ffffff');
-        NavigationBar.setBackgroundColorAsync(isDark ? '#0d1117' : '#ffffff');
-        NavigationBar.setButtonStyleAsync(isDark ? 'light' : 'dark');
-      }
-    }
-  }, [effectiveTheme]);
+  }, [isDark]);
 
   return (
-    <ThemeProvider value={isDark ? DarkTheme : DefaultTheme}>
+    <NavigationThemeProvider value={isDark ? DarkTheme : DefaultTheme}>
       <View
         className={`flex-1 transition-colors duration-300 ${
-          isDark ? 'bg-[#0d1117]' : 'bg-white'
+          isDark ? "bg-[#0d1117]" : "bg-white"
         }`}
       >
         <StatusBar
           animated
-          backgroundColor={isDark ? '#0d1117' : '#ffffff'}
-          barStyle={isDark ? 'light-content' : 'dark-content'}
+          backgroundColor={isDark ? "#0d1117" : "#ffffff"}
+          barStyle={isDark ? "light-content" : "dark-content"}
         />
 
         <Stack
@@ -127,25 +103,25 @@ function RootLayoutNav() {
             headerShown: false,
           }}
         >
-          {/* 🔐 Root + Modal Routes */}
+          {/* Root + modal routes */}
           <Stack.Screen name="index" />
-          <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+          <Stack.Screen name="modal" options={{ presentation: "modal" }} />
 
-          {/* 👑 Admin Routes */}
-          <Stack.Screen name="(admin)" options={{ headerShown: false }} />
+          {/* Admin */}
+          <Stack.Screen name="(admin)" />
 
-          {/* 💊 Patient Routes */}
-          <Stack.Screen name="(patient)" options={{ headerShown: false }} />
+          {/* Patient */}
+          <Stack.Screen name="(patient)" />
 
-          {/* 🩺 Provider Routes */}
-          <Stack.Screen name="(provider)" options={{ headerShown: false }} />
+          {/* Provider */}
+          <Stack.Screen name="(provider)" />
         </Stack>
 
-        {/* 🌙 Floating Theme Toggle */}
+        {/* Floating theme toggle */}
         <View className="absolute bottom-8 right-8">
-          <ThemeToggle onThemeChange={handleThemeChange} />
+          <ThemeToggle />
         </View>
       </View>
-    </ThemeProvider>
+    </NavigationThemeProvider>
   );
 }

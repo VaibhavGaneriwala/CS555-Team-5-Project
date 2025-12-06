@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   ScrollView,
 } from "react-native";
+import { useColorScheme } from "nativewind";
 import { Calendar } from "react-native-calendars";
 import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -36,6 +37,10 @@ export default function MedicationCalendarPage() {
 
   const [successMessage, setSuccessMessage] = useState("");
   const [lastLogId, setLastLogId] = useState<string | null>(null);
+
+  const { colorScheme } = useColorScheme();
+  const isDarkMode = colorScheme === "dark";
+
 
   // Load token
   useEffect(() => {
@@ -174,9 +179,11 @@ export default function MedicationCalendarPage() {
 
   if (loading) {
     return (
-      <View className="flex-1 justify-center items-center bg-gray-900">
+      <View className="flex-1 justify-center items-center bg-gray-50 dark:bg-gray-900">
         <ActivityIndicator size="large" color="#3B82F6" />
-        <Text className="text-gray-300 mt-4">Loading medications...</Text>
+        <Text className="text-gray-700 dark:text-gray-300 mt-4">
+          Loading medications...
+        </Text>
       </View>
     );
   }
@@ -184,26 +191,28 @@ export default function MedicationCalendarPage() {
   const todaysMeds = getMedsForDate(selectedDate);
 
   return (
-    <ScrollView className="flex-1 bg-gray-900 px-4 pt-10">
-      <Text className="text-3xl font-bold text-white text-center mb-6">
+    <ScrollView className="flex-1 bg-gray-50 dark:bg-gray-900 px-4 pt-10">
+      <Text className="text-3xl font-bold text-gray-900 dark:text-white text-center mb-6">
         Medication Calendar
       </Text>
 
       {/* Calendar */}
       <Calendar
-        markingType="dot"
-        markedDates={markedDates}
-        onDayPress={(day) => setSelectedDate(day.dateString)}
-        theme={{
-          backgroundColor: "#111827",
-          calendarBackground: "#1F2937",
-          monthTextColor: "#fff",
-          dayTextColor: "#fff",
-          selectedDayBackgroundColor: "#2563EB",
-          selectedDayTextColor: "#fff",
-          arrowColor: "#60A5FA",
-        }}
-      />
+  key={isDarkMode ? "dark" : "light"}   // ← FORCE REMOUNT
+  markingType="dot"
+  markedDates={markedDates}
+  onDayPress={(day) => setSelectedDate(day.dateString)}
+  theme={{
+    backgroundColor: isDarkMode ? "#111827" : "#F9FAFB",
+    calendarBackground: isDarkMode ? "#1F2937" : "#FFFFFF",
+    monthTextColor: isDarkMode ? "#F9FAFB" : "#111827",
+    dayTextColor: isDarkMode ? "#E5E7EB" : "#1F2937",
+    selectedDayBackgroundColor: "#2563EB",
+    selectedDayTextColor: "#FFFFFF",
+    arrowColor: isDarkMode ? "#60A5FA" : "#2563EB",
+  }}
+/>
+
 
       {/* Success Message + Undo */}
       {successMessage !== "" && (
@@ -223,17 +232,22 @@ export default function MedicationCalendarPage() {
 
       {/* Medication List */}
       <View className="mt-8 w-full flex items-center">
-        <View className="bg-gray-800 p-5 rounded-xl w-full max-w-2xl">
-          <Text className="text-xl font-bold text-white mb-3">
+        <View className="bg-white dark:bg-gray-800 p-5 rounded-xl w-full max-w-2xl border border-gray-200 dark:border-gray-700">
+          <Text className="text-xl font-bold text-gray-900 dark:text-white mb-3">
             Medications on {selectedDate}
           </Text>
 
           {todaysMeds.length === 0 ? (
-            <Text className="text-gray-400">No medications scheduled.</Text>
+            <Text className="text-gray-600 dark:text-gray-400">
+              No medications scheduled.
+            </Text>
           ) : (
             todaysMeds.map((m) => (
-              <View key={m._id} className="border-b border-gray-700 py-3">
-                <Text className="text-gray-200 font-semibold">
+              <View
+                key={m._id}
+                className="border-b border-gray-200 dark:border-gray-700 py-3"
+              >
+                <Text className="text-gray-900 dark:text-gray-200 font-semibold">
                   {m.name} — {m.dosage}
                 </Text>
 
@@ -244,7 +258,9 @@ export default function MedicationCalendarPage() {
                       key={i}
                       className="flex-row justify-between items-center mt-2"
                     >
-                      <Text className="text-gray-300">🕒 {s.time}</Text>
+                      <Text className="text-gray-600 dark:text-gray-300">
+                        🕒 {s.time}
+                      </Text>
 
                       <TouchableOpacity
                         onPress={() => logDose(m._id, s.time)}

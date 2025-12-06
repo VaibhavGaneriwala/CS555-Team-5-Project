@@ -10,19 +10,19 @@ import {
   Platform,
   LayoutAnimation,
   UIManager,
+  Appearance,
 } from "react-native";
 import Constants from "expo-constants";
 import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Swipeable } from "react-native-gesture-handler";
-// @ts-ignore: expo-clipboard may not include TypeScript declarations in this project
 import * as Clipboard from "expo-clipboard";
 import Markdown from "react-native-markdown-display";
+import { useColorScheme } from "nativewind";
 
 // -------------------------
 // TYPES
 // -------------------------
-
 type Sender = "user" | "bot";
 
 interface ChatMessage {
@@ -35,13 +35,20 @@ const API_URL =
 
 const STORAGE_KEY = "medassist_chat_messages";
 
+// -------------------------
+// MAIN COMPONENT
+// -------------------------
 export default function Chatbot() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
-  const [isListening, setIsListening] = useState<boolean>(false); // voice stub
+  const [isListening, setIsListening] = useState<boolean>(false);
 
   const scrollRef = useRef<ScrollView | null>(null);
+
+  // THEME STATE
+  const { colorScheme } = useColorScheme();
+  const isDarkMode = colorScheme === "dark";
 
   // Enable LayoutAnimation on Android
   useEffect(() => {
@@ -71,6 +78,8 @@ export default function Chatbot() {
 
   // Persist chat history whenever it changes
   useEffect(() => {
+    if (messages.length === 0) return;
+
     const saveMessages = async () => {
       try {
         await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
@@ -78,21 +87,16 @@ export default function Chatbot() {
         console.error("⚠️ Failed to save chat history:", err);
       }
     };
-    if (messages.length > 0) {
-      saveMessages();
-    }
+
+    saveMessages();
   }, [messages]);
 
-  // -------------------------
-  // HELPERS
-  // -------------------------
+  // HELPERS ---------------------------------------------------
 
   const handleCopy = async (text: string) => {
     try {
       await Clipboard.setStringAsync(text);
-      console.log("📋 Message copied to clipboard");
     } catch (err) {
-      console.error("⚠️ Clipboard error:", err);
     }
   };
 
@@ -106,18 +110,10 @@ export default function Chatbot() {
   );
 
   const handleVoiceInput = () => {
-    // 🔊 Voice input stub:
-    // For real STT, wire this to a library like `react-native-voice`
-    // or a cloud speech-to-text service.
     setIsListening((prev) => !prev);
-    console.log(
-      "🎙️ Voice input toggled. Implement speech-to-text integration here."
-    );
   };
 
-  // -------------------------
-  // SEND MESSAGE
-  // -------------------------
+  // SEND MESSAGE -----------------------------------------------
   const sendMessage = async () => {
     if (!input.trim() || loading) return;
 
@@ -136,8 +132,6 @@ export default function Chatbot() {
     try {
       const token = await AsyncStorage.getItem("token");
 
-      console.log("📤 Sending:", textToSend);
-
       const res = await fetch(`${API_URL}/api/chat`, {
         method: "POST",
         headers: {
@@ -147,10 +141,7 @@ export default function Chatbot() {
         body: JSON.stringify({ message: textToSend }),
       });
 
-      console.log("📥 Status:", res.status);
       const data = await res.json();
-
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
 
       const botMsg: ChatMessage = {
         sender: "bot",
@@ -165,41 +156,35 @@ export default function Chatbot() {
     } catch (err) {
       console.error("⚠️ Chat error:", err);
 
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-
       const errorMsg: ChatMessage = {
         sender: "bot",
         text: "Something went wrong connecting to the server.",
       };
+
       setMessages((prev) => [...prev, errorMsg]);
     }
 
     setLoading(false);
 
-    setTimeout(
-      () => scrollRef.current?.scrollToEnd({ animated: true }),
-      100
-    );
+    setTimeout(() => {
+      scrollRef.current?.scrollToEnd({ animated: true });
+    }, 100);
   };
 
-  // -------------------------
-  // UI (Floating Panel)
-// -------------------------
+  // UI ---------------------------------------------------------
   return (
     <KeyboardAvoidingView
       className="flex-1 bg-black/60"
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <View className="flex-1 justify-center items-center">
-        {/* Floating Chat Panel */}
         <View className="w-[92%] max-w-2xl h-[80%] rounded-3xl bg-white dark:bg-gray-900 shadow-2xl overflow-hidden">
-          {/* Card Header */}
+
+          {/* HEADER */}
           <View className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex-row items-center justify-between bg-blue-600 dark:bg-blue-700">
             <View>
               <Text className="text-xs text-blue-100">Chat with</Text>
-              <Text className="text-xl font-bold text-white">
-                MedAssist AI
-              </Text>
+              <Text className="text-xl font-bold text-white">MedAssist AI</Text>
             </View>
 
             <TouchableOpacity onPress={() => router.back()}>
@@ -207,7 +192,7 @@ export default function Chatbot() {
             </TouchableOpacity>
           </View>
 
-          {/* Messages Area */}
+          {/* MESSAGES */}
           <ScrollView
             className="flex-1"
             contentContainerStyle={{ padding: 16 }}
@@ -216,34 +201,39 @@ export default function Chatbot() {
               scrollRef.current?.scrollToEnd({ animated: true })
             }
           >
-            {messages.map((msg, index) => (
-              <Swipeable
-                key={index}
-                renderRightActions={() => renderRightActions(msg)}
-              >
-                <View
-                  className={`max-w-[80%] p-3 rounded-2xl my-2 ${
-                    msg.sender === "user"
-                      ? "self-end bg-blue-600"
-                      : "self-start bg-gray-200 dark:bg-gray-700"
-                  }`}
+            {messages.map((msg, index) => {
+              return (
+                <Swipeable
+                  key={index}
+                  renderRightActions={() => renderRightActions(msg)}
                 >
-                  <Markdown
-                    style={{
-                      body: {
-                        color:
-                          msg.sender === "user" ? "#FFFFFF" : "#111827",
-                        fontSize: 16,
-                      },
-                    }}
+                  <View
+                    className={`max-w-[80%] p-3 rounded-2xl my-2 ${
+                      msg.sender === "user"
+                        ? "self-end bg-blue-600"
+                        : "self-start bg-gray-200 dark:bg-gray-700"
+                    }`}
                   >
-                    {msg.text}
-                  </Markdown>
-                </View>
-              </Swipeable>
-            ))}
+                    <Markdown
+                      style={{
+                        body: {
+                          color:
+                            msg.sender === "user"
+                              ? "#FFFFFF"
+                              : isDarkMode
+                                ? "#F9FAFB"
+                                : "#111827",
+                          fontSize: 16,
+                        },
+                      }}
+                    >
+                      {msg.text}
+                    </Markdown>
+                  </View>
+                </Swipeable>
+              );
+            })}
 
-            {/* Typing Indicator */}
             {loading && (
               <View className="mt-2">
                 <View className="self-start bg-gray-300 dark:bg-gray-700 rounded-xl p-3 my-1 w-16 flex-row items-center justify-center">
@@ -256,9 +246,9 @@ export default function Chatbot() {
             )}
           </ScrollView>
 
-          {/* Input Bar INSIDE Card */}
+          {/* INPUT BAR */}
           <View className="flex-row items-center px-3 py-2 border-t border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800">
-            {/* Voice input button (stub) */}
+
             <TouchableOpacity
               onPress={handleVoiceInput}
               className={`mr-2 p-3 rounded-full ${
@@ -273,7 +263,7 @@ export default function Chatbot() {
             <TextInput
               className="flex-1 bg-white dark:bg-gray-700 text-black dark:text-white px-3 py-2 rounded-xl border border-gray-300 dark:border-gray-600"
               placeholder="Ask me anything..."
-              placeholderTextColor="#999"
+              placeholderTextColor={isDarkMode ? "#9CA3AF" : "#6B7280"}
               value={input}
               onChangeText={setInput}
             />
@@ -285,10 +275,9 @@ export default function Chatbot() {
                 loading ? "bg-gray-400" : "bg-blue-600"
               }`}
             >
-              <Text className="text-white font-semibold text-base">
-                ➤
-              </Text>
+              <Text className="text-white font-semibold text-base">➤</Text>
             </TouchableOpacity>
+
           </View>
         </View>
       </View>

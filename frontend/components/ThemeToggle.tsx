@@ -1,32 +1,29 @@
-import React, { useState, useEffect } from 'react';
-import { TouchableOpacity } from 'react-native';
-import Ionicons from 'react-native-vector-icons/Ionicons';
+import React from "react";
+import { TouchableOpacity } from "react-native";
+import Ionicons from "react-native-vector-icons/Ionicons";
+import { useColorScheme } from "nativewind";
 
-type ThemeToggleProps = {
-  onThemeChange?: (theme: 'light' | 'dark') => void;
+type Props = {
+  onThemeChange?: (theme: "light" | "dark") => void;
 };
 
-const ThemeToggle: React.FC<ThemeToggleProps> = ({ onThemeChange }) => {
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
-  const isDark = theme === 'dark';
-
-  useEffect(() => {
-    onThemeChange?.(theme);
-  }, [theme]);
+export default function ThemeToggle({ onThemeChange }: Props) {
+  const { colorScheme, setColorScheme } = useColorScheme();
+  const isDark = colorScheme === "dark";
 
   const toggleTheme = () => {
-    setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
+    const newTheme = isDark ? "light" : "dark";
+    setColorScheme(newTheme);
+    onThemeChange?.(newTheme);
   };
 
   return (
     <TouchableOpacity onPress={toggleTheme}>
       <Ionicons
-        name={isDark ? 'sunny-outline' : 'moon-outline'}
-        size={24}
-        color={isDark ? '#fff' : '#000'}
+        name={isDark ? "sunny-outline" : "moon-outline"}
+        size={26}
+        color={isDark ? "#fff" : "#000"}
       />
     </TouchableOpacity>
   );
-};
-
-export default ThemeToggle;
+}
