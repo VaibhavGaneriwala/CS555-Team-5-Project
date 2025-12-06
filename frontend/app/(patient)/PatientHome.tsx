@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   ScrollView,
   Alert,
+  FlatList,
 } from "react-native";
 import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -99,7 +100,6 @@ const getNextDoseDate = (med: Medication): Date | null => {
 export default function PatientHome() {
   const [patient, setPatient] = useState<Patient | null>(null);
   const [medications, setMedications] = useState<Medication[]>([]);
-  const [adherenceLogs, setAdherenceLogs] = useState<AdherenceLog[]>([]);
   const [showLogs, setShowLogs] = useState(false);
   const [token, setToken] = useState<string | null>(null);
 
@@ -111,6 +111,11 @@ export default function PatientHome() {
 
   const [upcomingMedications, setUpcomingMedications] = useState<any[]>([]);
   const [upcomingMedsLoading, setUpcomingMedsLoading] = useState(true);
+
+  const [logsLoading, setLogsLoading] = useState(false);
+  const [logsError, setLogsError] = useState<string | null>(null);
+  const [adherenceLogs, setAdherenceLogs] = useState<AdherenceLog[]>([]);
+
 
   // -------------------------------------------------
   // LOAD TOKEN
@@ -231,6 +236,86 @@ export default function PatientHome() {
     }
   };
 
+  // ---------------------------
+  // FETCH DOSE LOGS (Last 7 Days)
+  // ---------------------------
+  const fetchDoseLogs = async () => {
+  if (!token) {
+    setLogsError("Token invalid; try logging in again.");
+    return;
+  }
+
+  try {
+    setLogsLoading(true);
+    setLogsError(null);
+
+    const response = await fetch(`${API_URL}/api/medications`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      let body: any;
+      try {
+        body = await response.json();
+      } catch {
+        body = await response.text();
+      }
+
+      const message =
+        typeof body === "string"
+          ? body
+          : body?.message ?? JSON.stringify(body);
+
+      setLogsError(`Failed to fetch medications: ${message}`);
+      return;
+    }
+
+    const data = normalizeToArray(await response.json());
+
+    // Filter: last 7 days
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+    const recentLogs = data.filter((med: any) => {
+      const timestamp = new Date(med.createdAt);
+      return timestamp >= sevenDaysAgo;
+    });
+
+    // Map to adherence log format
+    const mappedLogs: AdherenceLog[] = recentLogs.map((med: any) => ({
+      _id: med._id,
+      status: "Taken",      // Medications were logged as taken
+      createdAt: med.createdAt,
+      takenAt: med.createdAt,
+      scheduledTime: null,
+    }));
+
+    setAdherenceLogs(mappedLogs);
+  } catch (err: any) {
+    console.error("fetchDoseLogs error", err);
+    setLogsError(err?.message ?? "Network error while fetching logs");
+  } finally {
+    setLogsLoading(false);
+  }
+};
+
+
+  // Open modal + load logs
+  const openLogsModal = async () => {
+    setShowLogs(true);
+    await fetchDoseLogs();
+  };
+
+  // Close modal
+  const closeLogsModal = () => {
+    setShowLogs(false);
+    setLogsError(null);
+  };
+
   // -------------------------------------------------
   // UI
   // -------------------------------------------------
@@ -339,7 +424,7 @@ export default function PatientHome() {
           </TouchableOpacity>
 
           <TouchableOpacity
-            onPress={() => setShowLogs(true)}
+            onPress={openLogsModal}
             className="flex-1 bg-green-600 py-4 rounded-2xl shadow-md"
           >
             <Text className="text-white text-center text-lg font-semibold">
@@ -365,36 +450,44 @@ export default function PatientHome() {
         <View className="flex-1 justify-center items-center bg-black/50">
           <View className="bg-white dark:bg-gray-800 rounded-xl p-6 w-11/12 max-h-[80%]">
             <Text className="text-xl font-bold mb-4 text-center text-gray-900 dark:text-white">
-              Dose Logs (Last 7 Days)
+              Medication Logs (Last 7 Days)
             </Text>
 
             <ScrollView className="max-h-[60vh]">
-              {adherenceLogs.length > 0 ? (
-                adherenceLogs.map((log, i) => (
-                  <View key={i} className="border-b border-gray-300 py-2">
-                    <Text className="text-gray-900 dark:text-gray-200 font-semibold">
-                      Medication Log Entry
-                    </Text>
-                    <Text className="text-gray-700 dark:text-gray-400">
-                      Status: {log.status}
-                    </Text>
-                    <Text className="text-gray-700 dark:text-gray-400">
-                      Time:{" "}
-                      {new Date(
-                        log.takenAt ?? log.scheduledTime ?? log.createdAt
-                      ).toLocaleString()}
-                    </Text>
-                  </View>
-                ))
+              {logsLoading ? (
+                <ActivityIndicator size="large" color="#3B82F6" />
+              ) : logsError ? (
+                <Text className="text-red-600 text-center">{logsError}</Text>
+              ) : adherenceLogs.length > 0 ? (
+                <FlatList
+                    data={adherenceLogs}
+                    keyExtractor={(item) => item._id}
+                    renderItem={({ item }) => (
+                      <View className="border-b border-gray-300 py-2">
+                        <Text className="text-gray-900 dark:text-gray-200 font-semibold">
+                          Medication Log Entry
+                        </Text>
+                        <Text className="text-gray-700 dark:text-gray-400">
+                          Status: {item.status}
+                        </Text>
+                        <Text className="text-gray-700 dark:text-gray-400">
+                          Time:{" "}
+                          {new Date(
+                            item.takenAt ?? item.scheduledTime ?? item.createdAt
+                          ).toLocaleString()}
+                        </Text>
+                      </View>
+                    )}
+                  />
               ) : (
                 <Text className="text-gray-700 dark:text-gray-300 text-center">
-                  No doses logged.
+                  No medications logged in the last 7 days.
                 </Text>
               )}
             </ScrollView>
 
             <TouchableOpacity
-              onPress={() => setShowLogs(false)}
+              onPress={closeLogsModal}
               className="bg-red-500 px-6 py-3 rounded-xl mt-6"
             >
               <Text className="text-white text-lg font-semibold text-center">
