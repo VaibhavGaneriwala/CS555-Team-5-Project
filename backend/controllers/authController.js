@@ -328,6 +328,59 @@ exports.updateUser = async (req, res) => {
                 dateOfBirth: user.dateOfBirth,
                 gender: user.gender,
                 address: user.address,
+            },
+        });
+    } catch (error) {
+        console.error('Error updating user:', error);
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+
+const PHONE_REGEX = /^\d{10}$/;
+const ZIPCODE_REGEX = /^\d{5}$/;
+
+exports.updateMe = async (req, res) => {
+    try {
+        const { phoneNumber, address } = req.body;
+        const userId = req.user.id;
+        const user = await User.findById(userId);
+        
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        if (phoneNumber) {
+            if (!PHONE_REGEX.test(phoneNumber)) {
+                return res.status(400).json({ message: 'Invalid phone number. Must be 10 digits.' });
+            }
+            user.phoneNumber = phoneNumber;
+        }
+
+        if (address) {
+            if (!address.streetAddress || !address.city || !address.state || !address.zipcode) {
+                return res.status(400).json({ message: 'All address fields are required: streetAddress, city, state, zipcode' });
+            }
+            if (!ZIPCODE_REGEX.test(address.zipcode)) {
+                return res.status(400).json({ message: 'Invalid zipcode. Must be 5 digits.' });
+            }
+            user.address = address;
+        }
+
+        await user.save();
+
+        res.status(200).json({
+            success: true,
+            message: 'Profile updated successfully',
+            user: {
+                _id: user._id,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                email: user.email,
+                role: user.role,
+                phoneNumber: user.phoneNumber,
+                dateOfBirth: user.dateOfBirth,
+                gender: user.gender,
+                address: user.address,
                 isActive: user.isActive
             }
         });

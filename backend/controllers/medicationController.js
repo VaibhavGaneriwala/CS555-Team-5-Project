@@ -2,23 +2,19 @@ const Medication = require('../models/Medication');
 const User = require('../models/User');
 const mongoose = require('mongoose');
 
-// Function to check the medication access based on role
 async function checkMedicationAccess(user, medication = null, patientId = null) {
     const targetPatientId = patientId || medication?.patient?._id || medication?.patient;
-
     if (!targetPatientId) return false;
     if (user.role === 'admin') return true;
-
     if (user.role === 'patient') {
         return targetPatientId.toString() === user._id.toString();
     }
-
     if (user.role === 'provider') {
         const provider = await User.findById(user._id);
         if (!provider) return false;
-        return provider.patients.map(p => p.toString()).includes(targetPatientId.toString());
+        const providerPatientIds = new Set((provider.patients || []).map(p => p.toString()));
+        return providerPatientIds.has(targetPatientId.toString());
     }
-
     return false;
 }
 
@@ -36,13 +32,12 @@ exports.createMedication = async (req, res) => {
         }
         if (!name || !dosage || !frequency || !schedule || !startDate)return res.status(400).json({message: 'All fields are required'});
         
-        // Ensure that the prescribedId is valid
         let prescriberId = prescribedBy || req.user._id;
         
         if (!mongoose.Types.ObjectId.isValid(prescriberId)) {
             return res.status(400).json({ message: 'Invalid prescribedBy ID' });
         }
-        // Make sure that the prescriber exists and is a provider
+        
         const prescriber = await User.findById(prescriberId);
 
         if (!prescriber || prescriber.role !== 'provider') {
@@ -76,19 +71,15 @@ exports.getMedications = async (req, res) => {
             query.patient = req.user._id;
         } else if (req.user.role === 'provider'){
             const {patientId} = req.query;
-                // Load provider once and use for both branches
-                const provider = await User.findById(req.user._id);
-                if (patientId){
-                    // Ensure the provider is authorized for the requested patient.
-                    // provider.patients may contain ObjectIds, so compare as strings.
-                    const allowed = provider.patients.map(p => p.toString()).includes(patientId.toString());
-                    if (!allowed){
-                        return res.status(403).json({message: 'You are not authorized to access this patient\'s medications'});
-                    }
-                    query.patient = patientId;
-                } else {
-                    // No specific patient requested: return meds for all patients of this provider
-                    query.patient = { $in: provider.patients };
+            const provider = await User.findById(req.user._id);
+            if (patientId){
+                const providerPatientIds = new Set(provider.patients.map(p => p.toString()));
+                if (!providerPatientIds.has(patientId.toString())){
+                    return res.status(403).json({message: 'You are not authorized to access this patient\'s medications'});
+                }
+                query.patient = patientId;
+            } else {
+                query.patient = { $in: provider.patients };
             }
         } else if (req.user.role === 'admin'){
             const {patientId} = req.query;
@@ -149,16 +140,25 @@ exports.deleteMedication = async (req, res) => {
         if (!mongoose.Types.ObjectId.isValid(medication_id)) {
             return res.status(404).json({ message: 'Medication Id is invalid' });
         }
-        const medication = await Medication.findById(medication_id);
-        if (!medication) return res.status(404).json({message: 'Medication not found'});
+        
+        const medication = await Medication.findById(medication_id).populate('patient');
+        if (!medication) {
+            return res.status(404).json({message: 'Medication not found'});
+        }
+        
         const authorized = await checkMedicationAccess(req.user, medication);
         if (!authorized) {
             return res.status(403).json({ message: 'You are not authorized to delete this medication' });
         }
-        await Medication.deleteOne();
+        
+        const result = await Medication.findByIdAndDelete(medication_id);
+        if (!result) {
+            return res.status(404).json({message: 'Medication not found'});
+        }
+        
         res.status(200).json({message: 'Medication deleted successfully'});
     } catch (error){
-        console.error(error);
+        console.error('Delete medication error:', error);
         res.status(500).json({message: 'Server error', error: error.message});
     }
 };
