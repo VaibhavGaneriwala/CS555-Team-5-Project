@@ -20,19 +20,18 @@ jobs:
         with:
           node-version: "20"
 
-      # REQUIRED for mongodb-memory-server to work on GitHub Actions
-      - name: Install missing MongoDB dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libssl1.1 || true
-
+      # Prevent mongodb-memory-server from downloading MongoDB binaries during install
+      # (Fixes semver.js install corruption on GitHub runners)
       - name: Install backend dependencies
         working-directory: backend
+        env:
+          MONGOMS_DISABLE_POSTINSTALL: "1"
         run: npm install --legacy-peer-deps
 
       - name: Run Jest tests
         working-directory: backend
         run: npm test --runInBand
+
 
   frontend-build:
     name: Frontend Build Check (Expo)
