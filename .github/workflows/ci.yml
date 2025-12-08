@@ -20,17 +20,19 @@ jobs:
         with:
           node-version: "20"
 
-      # ⛔ Prevent mongodb-memory-server from downloading binaries in CI
+      # REQUIRED for mongodb-memory-server to work on GitHub Actions
+      - name: Install missing MongoDB dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libssl1.1 || true
+
       - name: Install backend dependencies
         working-directory: backend
-        env:
-          MONGOMS_DISABLE_POSTINSTALL: "1"
-        run: npm install --ignore-scripts --legacy-peer-deps
+        run: npm install --legacy-peer-deps
 
       - name: Run Jest tests
         working-directory: backend
-        run: npm test --if-present
-
+        run: npm test --runInBand
 
   frontend-build:
     name: Frontend Build Check (Expo)
