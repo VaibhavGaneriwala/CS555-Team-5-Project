@@ -8,33 +8,31 @@ on:
 
 jobs:
   backend-tests:
-    name: Backend Tests
     runs-on: ubuntu-latest
+
+    env:
+      MONGOMS_DISABLE_POSTINSTALL: "1"    # 👈 GLOBAL env (this ensures it ALWAYS applies)
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: 20
 
-      # Prevent mongodb-memory-server from downloading MongoDB binaries during install
-      # (Fixes semver.js install corruption on GitHub runners)
       - name: Install backend dependencies
         working-directory: backend
-        env:
-          MONGOMS_DISABLE_POSTINSTALL: "1"
         run: npm install --legacy-peer-deps
 
-      - name: Run Jest tests
+      - name: Run backend tests
         working-directory: backend
         run: npm test --runInBand
 
 
+
   frontend-build:
-    name: Frontend Build Check (Expo)
     runs-on: ubuntu-latest
     needs: backend-tests
 
@@ -42,10 +40,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: 20
 
       - name: Install frontend dependencies
         working-directory: frontend
@@ -55,6 +53,6 @@ jobs:
         working-directory: frontend
         run: npx expo --version
 
-      - name: Frontend build (export)
+      - name: Build Expo web output
         working-directory: frontend
         run: npx expo export --platform web || echo "Expo build passed"
