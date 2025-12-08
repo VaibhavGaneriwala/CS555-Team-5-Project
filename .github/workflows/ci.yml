@@ -20,18 +20,22 @@ jobs:
         with:
           node-version: "20"
 
+      # ⛔ Prevent mongodb-memory-server from downloading binaries in CI
       - name: Install backend dependencies
         working-directory: backend
-        run: npm install --legacy-peer-deps
+        env:
+          MONGOMS_DISABLE_POSTINSTALL: "1"
+        run: npm install --ignore-scripts --legacy-peer-deps
 
       - name: Run Jest tests
         working-directory: backend
         run: npm test --if-present
 
+
   frontend-build:
     name: Frontend Build Check (Expo)
     runs-on: ubuntu-latest
-    needs: backend-tests  # Wait for backend tests to pass
+    needs: backend-tests
 
     steps:
       - name: Checkout repository
@@ -48,7 +52,7 @@ jobs:
 
       - name: Verify Expo CLI
         working-directory: frontend
-        run: npx expo --version || npm install -g expo-cli
+        run: npx expo --version
 
       - name: Frontend build (export)
         working-directory: frontend
