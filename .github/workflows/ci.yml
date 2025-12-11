@@ -2,45 +2,48 @@ name: Project CI
 
 on:
   push:
-    branches: [ main, frontend-development ]
+    branches: [ main, frontend-development, vaibhav ]
   pull_request:
-    branches: [ main, frontend-development ]
+    branches: [ main, frontend-development, vaibhav ]
 
 jobs:
   backend-tests:
-    name: Backend Tests
     runs-on: ubuntu-latest
+
+    env:
+      MONGOMS_DISABLE_POSTINSTALL: "1"    # 👈 GLOBAL env (this ensures it ALWAYS applies)
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: 20
 
       - name: Install backend dependencies
         working-directory: backend
         run: npm install --legacy-peer-deps
 
-      - name: Run Jest tests
+      - name: Run backend tests
         working-directory: backend
-        run: npm test --if-present
+        run: npm test --runInBand
+
+
 
   frontend-build:
-    name: Frontend Build Check (Expo)
     runs-on: ubuntu-latest
-    needs: backend-tests  # Wait for backend tests to pass
+    needs: backend-tests
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: 20
 
       - name: Install frontend dependencies
         working-directory: frontend
@@ -48,8 +51,8 @@ jobs:
 
       - name: Verify Expo CLI
         working-directory: frontend
-        run: npx expo --version || npm install -g expo-cli
+        run: npx expo --version
 
-      - name: Frontend build (export)
+      - name: Build Expo web output
         working-directory: frontend
         run: npx expo export --platform web || echo "Expo build passed"
