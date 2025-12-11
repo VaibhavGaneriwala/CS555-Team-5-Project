@@ -1,5 +1,6 @@
 const AdherenceLog = require('../models/AdherenceLog');
 const Medication = require('../models/Medication');
+const User = require('../models/User'); // Ensure User model is loaded for populate
 
 /**
  * Log a dose taken by patient
@@ -77,9 +78,85 @@ exports.getAdherenceLogs = async (req, res) => {
       }
     }
 
-    const logs = await AdherenceLog.find(query)
+    // ADMIN LOGIC - can view all logs, optionally filter by patientId
+    else if (user.role === "admin") {
+      if (patientId) {
+        query.patient = patientId;
+      }
+
+      if (startDate || endDate) {
+        const range = {};
+        if (startDate) range.$gte = new Date(startDate);
+        if (endDate) range.$lte = new Date(endDate);
+
+        query.$or = [
+          { takenAt: range },
+          { scheduledTime: range }
+        ];
+      }
+    }
+
+    let logs = await AdherenceLog.find(query)
+      .populate("patient", "firstName lastName email")
       .populate("medication", "name dosage")
-      .sort({ takenAt: -1 });
+      .sort({ takenAt: -1 })
+      .lean(); // Use lean() to get plain objects directly
+
+    // Check if populate worked - patient should be an object with firstName, or an ObjectId
+    // If patient is not an object with firstName, it means populate failed
+    const patientIdsToFetch = [];
+    logs.forEach((log, index) => {
+      // Check if patient is not properly populated (no firstName property)
+      if (log.patient && (!log.patient.firstName)) {
+        // Convert ObjectId to string if needed
+        const patientId = log.patient._id ? log.patient._id.toString() : 
+                         (typeof log.patient === 'string' ? log.patient : 
+                         (log.patient.toString ? log.patient.toString() : null));
+        if (patientId) {
+          patientIdsToFetch.push(patientId);
+        }
+      }
+    });
+
+    if (patientIdsToFetch.length > 0) {
+      console.log(`Manually populating ${patientIdsToFetch.length} patients that weren't auto-populated`);
+      const patients = await User.find({ _id: { $in: patientIdsToFetch } })
+        .select('firstName lastName email')
+        .lean();
+      
+      const patientMap = {};
+      patients.forEach(patient => {
+        patientMap[patient._id.toString()] = patient;
+      });
+
+      // Replace unpopulated patients with patient objects
+      logs = logs.map(log => {
+        if (log.patient && !log.patient.firstName) {
+          // Try to get the ID in various formats
+          const patientId = log.patient._id ? log.patient._id.toString() : 
+                           (typeof log.patient === 'string' ? log.patient : 
+                           (log.patient.toString ? log.patient.toString() : null));
+          if (patientId && patientMap[patientId]) {
+            log.patient = patientMap[patientId];
+          } else {
+            log.patient = null;
+          }
+        }
+        return log;
+      });
+    }
+
+    // Debug logging for admin
+    if (user.role === "admin" && logs.length > 0) {
+      const firstLog = logs[0];
+      console.log("Sample log patient (final):", JSON.stringify(firstLog.patient, null, 2));
+      console.log("Patient type:", typeof firstLog.patient);
+      if (firstLog.patient && typeof firstLog.patient === 'object' && firstLog.patient.firstName) {
+        console.log("✅ Patient populated successfully:", firstLog.patient.firstName, firstLog.patient.lastName);
+      } else {
+        console.log("❌ Patient NOT populated properly");
+      }
+    }
 
     res.json(logs);
 

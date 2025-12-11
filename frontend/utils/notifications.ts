@@ -1,6 +1,4 @@
 import { Platform } from "react-native";
-import * as Notifications from "expo-notifications";
-import * as Device from "expo-device";
 
 export async function registerForPushNotificationsAsync() {
   // ✅ Skip web completely
@@ -8,6 +6,15 @@ export async function registerForPushNotificationsAsync() {
     console.log("ℹ️ Skipping push registration on web (no service worker)");
     return;
   }
+
+  // Dynamically import to avoid SSR/localStorage issues
+  const [NotificationsModule, DeviceModule] = await Promise.all([
+    import("expo-notifications"),
+    import("expo-device"),
+  ]);
+
+  const Notifications = NotificationsModule.default || NotificationsModule;
+  const Device = DeviceModule.default || DeviceModule;
 
   if (!Device.isDevice) {
     console.log("⚠️ Must use a physical device for notifications");

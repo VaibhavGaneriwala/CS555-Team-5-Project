@@ -119,8 +119,10 @@ exports.getAllUsers = async (req, res) => {
             return res.status(403).json({ message: 'Access denied: Admin access required' });
         }
 
-        // Get all users, excluding password field
-        const users = await User.find({}).select('-password').sort({ createdAt: -1 });
+        // Get all users, excluding password field, sorted alphabetically by last name, then first name
+        const users = await User.find({}).select('-password')
+            .populate('provider', 'firstName lastName email')
+            .sort({ lastName: 1, firstName: 1 });
 
         // Format users for response
         const formattedUsers = users.map(user => ({
@@ -136,7 +138,8 @@ exports.getAllUsers = async (req, res) => {
             isActive: user.isActive,
             createdAt: user.createdAt,
             patientCount: user.role === 'provider' ? (user.patients?.length || 0) : null,
-            providerCount: user.role === 'patient' ? (user.provider?.length || 0) : null
+            providerCount: user.role === 'patient' ? (user.provider?.length || 0) : null, // Will be 0 or 1 (max 1 provider per patient)
+            hasProvider: user.role === 'patient' ? (user.provider?.length > 0) : null
         }));
 
         res.status(200).json({
@@ -387,5 +390,36 @@ exports.updateMe = async (req, res) => {
     } catch (error) {
         console.error('Error updating user:', error);
         res.status(500).json({ message: 'Server error while updating user', error: error.message });
+    }
+};
+
+// @desc    Delete user (Admin only)
+// @route   DELETE /api/auth/users/:id
+// @access  Private (Admin only)
+exports.deleteUser = async (req, res) => {
+    try {
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({ message: 'Access denied: Admin access required' });
+        }
+
+        const user = await User.findById(req.params.id);
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        // Prevent deleting yourself
+        if (user._id.toString() === req.user.id) {
+            return res.status(400).json({ message: 'You cannot delete your own account' });
+        }
+
+        await User.findByIdAndDelete(req.params.id);
+
+        res.status(200).json({
+            success: true,
+            message: 'User deleted successfully'
+        });
+    } catch (error) {
+        console.error('Error deleting user:', error);
+        res.status(500).json({ message: 'Server error', error: error.message });
     }
 };

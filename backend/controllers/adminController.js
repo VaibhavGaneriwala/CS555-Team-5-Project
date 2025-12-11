@@ -44,7 +44,7 @@ exports.assignPatientAsAdmin = async (req, res) => {
       return res.status(400).json({ message: 'Invalid patient selected.' });
     }
 
-    // Check if already assigned
+    // Check if already assigned to this provider
     const alreadyAssigned =
       (provider.patients || []).some((id) => id.equals(patient._id)) ||
       (patient.provider || []).some((id) => id.equals(provider._id));
@@ -55,9 +55,37 @@ exports.assignPatientAsAdmin = async (req, res) => {
         .json({ message: 'Patient is already assigned to this provider.' });
     }
 
+    let reassignmentMessage = '';
+    // If patient already has a provider, remove the old relationship
+    if (patient.provider && patient.provider.length > 0) {
+      const oldProviderId = patient.provider[0];
+      const oldProvider = await User.findById(oldProviderId);
+      
+      if (oldProvider) {
+        // Remove patient from old provider's list
+        oldProvider.patients = (oldProvider.patients || []).filter(
+          (id) => !id.equals(patient._id)
+        );
+        await oldProvider.save();
+        reassignmentMessage = ` Patient was previously assigned to ${oldProvider.firstName} ${oldProvider.lastName} and has been reassigned.`;
+        console.log(`Removed patient ${patient.email} from provider ${oldProvider.email}`);
+      }
+      
+      // Clear patient's provider array
+      patient.provider = [];
+    }
+
     // Add relationship both ways
-    provider.patients.push(patient._id);
-    patient.provider.push(provider._id);
+    // Provider can have multiple patients (array)
+    if (!provider.patients) {
+      provider.patients = [];
+    }
+    if (!provider.patients.some((id) => id.equals(patient._id))) {
+      provider.patients.push(patient._id);
+    }
+    
+    // Patient can have only ONE provider (array with max 1 element)
+    patient.provider = [provider._id];
 
     await provider.save();
     await patient.save();
@@ -67,7 +95,7 @@ exports.assignPatientAsAdmin = async (req, res) => {
     );
 
     return res.status(200).json({
-      message: `Patient ${patient.firstName} ${patient.lastName} assigned to provider ${provider.firstName} ${provider.lastName}.`,
+      message: `Patient ${patient.firstName} ${patient.lastName} assigned to provider ${provider.firstName} ${provider.lastName}.${reassignmentMessage}`,
       patient: {
         id: patient._id,
         name: `${patient.firstName} ${patient.lastName}`,

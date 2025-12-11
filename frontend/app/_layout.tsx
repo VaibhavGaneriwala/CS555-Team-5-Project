@@ -2,7 +2,6 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { DarkTheme, DefaultTheme, ThemeProvider as NavigationThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
-import * as Notifications from 'expo-notifications';
 import * as SplashScreen from 'expo-splash-screen';
 import React, { useEffect } from 'react';
 import {
@@ -10,6 +9,7 @@ import {
   Platform,
   StatusBar,
 } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import 'react-native-reanimated';
 import '@/global.css';
@@ -22,17 +22,6 @@ import { useColorScheme as useNativeWindColorScheme } from "nativewind";
 // Android UI control
 import * as SystemUI from 'expo-system-ui';
 import * as NavigationBar from 'expo-navigation-bar';
-
-// Notification handler
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
 
 export { ErrorBoundary } from 'expo-router';
 
@@ -73,6 +62,29 @@ function RootLayoutNav() {
   const { colorScheme } = useNativeWindColorScheme();
   const isDark = colorScheme === "dark";
 
+  // Setup notification handler (only on native platforms, not web)
+  useEffect(() => {
+    if (Platform.OS !== "web") {
+      // Dynamically import to avoid SSR issues
+      import('expo-notifications').then((NotificationsModule) => {
+        // expo-notifications uses namespace exports, access setNotificationHandler directly
+        if (NotificationsModule.setNotificationHandler) {
+          NotificationsModule.setNotificationHandler({
+            handleNotification: async () => ({
+              shouldShowAlert: true,
+              shouldPlaySound: true,
+              shouldSetBadge: true,
+              shouldShowBanner: true,
+              shouldShowList: true,
+            }),
+          });
+        }
+      }).catch((err) => {
+        console.warn('Failed to setup notifications:', err);
+      });
+    }
+  }, []);
+
   // Sync system UI: status bar + Android nav
   useEffect(() => {
     StatusBar.setBarStyle(isDark ? "light-content" : "dark-content");
@@ -86,42 +98,36 @@ function RootLayoutNav() {
   }, [isDark]);
 
   return (
-    <NavigationThemeProvider value={isDark ? DarkTheme : DefaultTheme}>
-      <View
-        className={`flex-1 transition-colors duration-300 ${
-          isDark ? "bg-[#0d1117]" : "bg-white"
-        }`}
-      >
-        <StatusBar
-          animated
-          backgroundColor={isDark ? "#0d1117" : "#ffffff"}
-          barStyle={isDark ? "light-content" : "dark-content"}
-        />
-
-        <Stack
-          screenOptions={{
-            headerShown: false,
-          }}
+    <SafeAreaProvider>
+      <NavigationThemeProvider value={isDark ? DarkTheme : DefaultTheme}>
+        <View
+          className={`flex-1 transition-colors duration-300 ${
+            isDark ? "bg-[#0d1117]" : "bg-white"
+          }`}
         >
-          {/* Root + modal routes */}
-          <Stack.Screen name="index" />
-          <Stack.Screen name="modal" options={{ presentation: "modal" }} />
+          <StatusBar
+            animated
+            backgroundColor={isDark ? "#0d1117" : "#ffffff"}
+            barStyle={isDark ? "light-content" : "dark-content"}
+          />
 
-          {/* Admin */}
-          <Stack.Screen name="(admin)" />
+          <Stack
+            screenOptions={{
+              headerShown: false,
+            }}
+          >
+            <Stack.Screen name="index" />
+            <Stack.Screen name="modal" options={{ presentation: "modal" }} />
+            <Stack.Screen name="(admin)" />
+            <Stack.Screen name="(patient)" />
+            <Stack.Screen name="(provider)" />
+          </Stack>
 
-          {/* Patient */}
-          <Stack.Screen name="(patient)" />
-
-          {/* Provider */}
-          <Stack.Screen name="(provider)" />
-        </Stack>
-
-        {/* Floating theme toggle */}
-        <View className="absolute bottom-8 right-8">
-          <ThemeToggle />
+          <View className="absolute bottom-8 right-8">
+            <ThemeToggle />
+          </View>
         </View>
-      </View>
-    </NavigationThemeProvider>
+      </NavigationThemeProvider>
+    </SafeAreaProvider>
   );
 }
