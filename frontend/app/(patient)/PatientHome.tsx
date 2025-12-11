@@ -363,7 +363,15 @@ export default function PatientHome() {
       {/* LOGS MODAL */}
       <Modal visible={showLogs} animationType="slide" transparent>
         <View className="flex-1 justify-center items-center bg-black/50">
-          <View className="bg-white dark:bg-gray-800 rounded-xl p-6 w-11/12 max-h-[80%]">
+          <View 
+            className="bg-white dark:bg-gray-800 rounded-xl p-6 w-11/12 max-h-[80%]"
+            style={{
+              ...(Platform.OS === 'web' && {
+                maxWidth: '700px',
+                width: '90%'
+              })
+            }}
+          >
             <Text className="text-xl font-bold mb-4 text-center text-gray-900 dark:text-white">
               Dose Logs (Last 7 Days)
             </Text>

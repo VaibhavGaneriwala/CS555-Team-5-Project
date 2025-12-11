@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const AdminNavbar = React.memo(function AdminNavbar() {
+const ProviderNavbar = React.memo(function ProviderNavbar() {
   const handleLogout = async () => {
     await AsyncStorage.removeItem('token');
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
@@ -39,7 +39,7 @@ const AdminNavbar = React.memo(function AdminNavbar() {
             if (expoRouter) {
               const router = expoRouter.router || expoRouter.default?.router || expoRouter.default || expoRouter;
               if (router && typeof router.push === 'function') {
-                router.push('/(admin)/AdminHome');
+                router.push('/(provider)/ProviderHome');
               }
             }
           }
@@ -61,9 +61,9 @@ const AdminNavbar = React.memo(function AdminNavbar() {
           activeOpacity={0.7}
         >
           <View className="flex-row items-center">
-            <Ionicons name="shield-checkmark" size={20} color="#2563eb" />
+            <Ionicons name="medical" size={20} color="#2563eb" />
             <Text className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white ml-2">
-              Admin Dashboard
+              Provider Dashboard
             </Text>
           </View>
         </TouchableOpacity>
@@ -83,6 +83,6 @@ const AdminNavbar = React.memo(function AdminNavbar() {
   );
 }, () => true);
 
-AdminNavbar.displayName = 'AdminNavbar';
+ProviderNavbar.displayName = 'ProviderNavbar';
 
-export default AdminNavbar;
+export default ProviderNavbar;

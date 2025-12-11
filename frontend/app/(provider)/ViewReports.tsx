@@ -1,4 +1,3 @@
-// app/(provider)/ViewReports.tsx
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
@@ -10,10 +9,21 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
+// Import router directly - expo-router provides it globally
 import { router, useLocalSearchParams } from 'expo-router';
 import { LineChart, BarChart } from 'react-native-chart-kit';
+import { Ionicons } from '@expo/vector-icons';
+import { Dropdown } from 'react-native-element-dropdown';
+import ProviderNavbar from '@/components/ProviderNavbar';
 
 const API_URL = Constants.expoConfig?.extra?.API_URL ?? 'http://localhost:3000';
+
+const DATE_RANGE_OPTIONS = [
+  { label: 'Last 7 Days', value: '7d' },
+  { label: 'Last 14 Days', value: '14d' },
+  { label: 'Last 30 Days', value: '30d' },
+  { label: 'Last 90 Days', value: '90d' },
+];
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -46,7 +56,7 @@ interface MedPoint {
 interface WeeklyPoint {
   isoYear: number;
   isoWeek: number;
-  week: string;   // e.g. "2025-W1"
+  week: string;
   pct: number;
 }
 
@@ -119,17 +129,18 @@ const toISO = (d: Date) => d.toISOString();
 ====================================================== */
 
 export default function ViewReports() {
-  const { patientId: initialPatientId } = useLocalSearchParams<{ patientId?: string }>();
-
+  // Get patientId from route params if provided
+  const params = useLocalSearchParams<{ patientId?: string }>();
+  const routePatientId = params?.patientId;
+  
   const [token, setToken] = useState<string | null>(null);
   const [patients, setPatients] = useState<Patient[]>([]);
-  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(
-    initialPatientId ?? null
-  );
+  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(routePatientId || null);
 
-  const [rangeLabel, setRangeLabel] =
-    useState<'7d' | '14d' | '30d' | '90d'>('30d');
+  const [rangeLabel, setRangeLabel] = useState<'7d' | '14d' | '30d' | '90d'>('30d');
   const [dateRange, setDateRange] = useState(() => makeRange(30));
+  const [isRangeFocused, setIsRangeFocused] = useState(false);
+  const [isPatientFocused, setIsPatientFocused] = useState(false);
 
   const [trendData, setTrendData] = useState<TrendResponse | null>(null);
   const [alerts, setAlerts] = useState<string[]>([]);
@@ -148,6 +159,16 @@ export default function ViewReports() {
     };
     load();
   }, []);
+
+  /* ======================================================
+      SET PATIENT FROM ROUTE PARAMS
+  ====================================================== */
+  
+  useEffect(() => {
+    if (routePatientId && routePatientId !== selectedPatientId) {
+      setSelectedPatientId(routePatientId);
+    }
+  }, [routePatientId]);
 
   /* ======================================================
       FETCH PROVIDER PATIENTS
@@ -179,17 +200,22 @@ export default function ViewReports() {
         const pts: Patient[] = data.patients || [];
         setPatients(pts);
 
-        // Auto-select initial patient
-        if (!selectedPatientId) {
-          if (initialPatientId && pts.find((p) => p._id === initialPatientId)) {
-            setSelectedPatientId(initialPatientId);
+        // If patientId from route params, use it; otherwise select first patient
+        if (routePatientId) {
+          // Verify the patient exists in the list
+          const patientExists = pts.find((p) => p._id === routePatientId);
+          if (patientExists) {
+            setSelectedPatientId(routePatientId);
           } else if (pts.length > 0) {
+            // If route patient not found, fall back to first patient
             setSelectedPatientId(pts[0]._id);
           }
+        } else if (!selectedPatientId && pts.length > 0) {
+          // Select first patient by default if no route param
+          setSelectedPatientId(pts[0]._id);
         }
 
       } catch (err) {
-        console.error('Error fetching patients', err);
         setError('Unable to connect to server.');
       } finally {
         setLoadingPatients(false);
@@ -212,7 +238,6 @@ export default function ViewReports() {
       a.date.localeCompare(b.date)
     );
 
-    // DAILY DROPS
     for (let i = 1; i < dailySorted.length; i++) {
       const prev = dailySorted[i - 1];
       const curr = dailySorted[i];
@@ -224,7 +249,6 @@ export default function ViewReports() {
       }
     }
 
-    // MISSED DOSES
     for (let i = 0; i < dailySorted.length; i++) {
       const d = dailySorted[i];
       const prevMissed = i > 0 ? dailySorted[i - 1].missed : 0;
@@ -239,7 +263,6 @@ export default function ViewReports() {
       }
     }
 
-    // WEEKLY DECLINES
     const weeklySorted = [...data.weeklyAverage].sort((a, b) => {
       if (a.isoYear !== b.isoYear) return a.isoYear - b.isoYear;
       return a.isoWeek - b.isoWeek;
@@ -270,10 +293,13 @@ export default function ViewReports() {
       setLoadingTrends(true);
       setError(null);
 
-      // NEW BACKEND ANALYTICS ENDPOINT
+      // Ensure we're using the current dateRange
+      const startDateStr = toISO(dateRange.start);
+      const endDateStr = toISO(dateRange.end);
+
       const url = `${API_URL}/api/adherence/trends?patientId=${selectedPatientId}&startDate=${encodeURIComponent(
-        toISO(dateRange.start)
-      )}&endDate=${encodeURIComponent(toISO(dateRange.end))}`;
+        startDateStr
+      )}&endDate=${encodeURIComponent(endDateStr)}`;
 
       const res = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` },
@@ -288,7 +314,6 @@ export default function ViewReports() {
 
       const backendDaily = raw.trend || [];
 
-      // Convert backend => DailyPoint format
       const dailyFromBackend: DailyPoint[] = backendDaily.map((d: any) => ({
         date: d.date,
         taken: d.taken ?? 0,
@@ -296,10 +321,9 @@ export default function ViewReports() {
         pct: d.adherenceRate ?? 0,
       }));
 
-      // FETCH OLD LOGS TO PRESERVE EXISTING CHARTS (weekly + meds)
       const oldUrl = `${API_URL}/api/adherence?patientId=${selectedPatientId}&startDate=${encodeURIComponent(
-        toISO(dateRange.start)
-      )}&endDate=${encodeURIComponent(toISO(dateRange.end))}`;
+        startDateStr
+      )}&endDate=${encodeURIComponent(endDateStr)}`;
 
       const oldRes = await fetch(oldUrl, {
         headers: { Authorization: `Bearer ${token}` },
@@ -333,7 +357,6 @@ export default function ViewReports() {
         return { date, taken: d.taken, missed: d.missed, pct };
       });
 
-      // FINAL DAILY = backend trends preferred
       const finalDaily = dailyFromBackend.length > 0 ?
         dailyFromBackend :
         dailyFromOldMethod;
@@ -410,7 +433,6 @@ export default function ViewReports() {
       setAlerts(computeAlerts(result));
 
     } catch (err) {
-      console.error("Error fetching adherence trends:", err);
       setError("Unable to connect to server.");
     } finally {
       setLoadingTrends(false);
@@ -428,17 +450,23 @@ export default function ViewReports() {
     selectedPatientId,
     dateRange.start.getTime(),
     dateRange.end.getTime(),
+    rangeLabel,
     token
   ]);
 
   /* ======================================================
-      UTILITY: CHANGE DATE RANGE BUTTON
+      UTILITY: CHANGE DATE RANGE
   ====================================================== */
 
   const handleRangeChange = (label: '7d' | '14d' | '30d' | '90d') => {
     setRangeLabel(label);
     const days = label === '7d' ? 7 : label === '14d' ? 14 : label === '90d' ? 90 : 30;
-    setDateRange(makeRange(days));
+    const newRange = makeRange(days);
+    // Ensure we create new Date objects to trigger useEffect
+    setDateRange({
+      start: new Date(newRange.start.getTime()),
+      end: new Date(newRange.end.getTime())
+    });
   };
 
   /* ======================================================
@@ -548,207 +576,265 @@ export default function ViewReports() {
   }
 
   return (
-    <View className="flex-1 w-full bg-white dark:bg-gray-900 pt-10 pb-4 px-4">
-      <Text className="text-3xl font-bold text-center mb-6 text-gray-800 dark:text-white">
-        Adherence Reports
-      </Text>
-
-      {/* PATIENT FILTER */}
-      <View className="mb-6">
-        <Text className="text-gray-800 dark:text-gray-200 font-semibold mb-2">
-          Patient
-        </Text>
-
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {patients.map((p) => (
-            <TouchableOpacity
-              key={p._id}
-              onPress={() => setSelectedPatientId(p._id)}
-              className={`px-3 py-2 rounded-full mr-2 mb-2 border 
-                ${
-                  selectedPatientId === p._id
-                    ? 'bg-blue-600 border-blue-700'
-                    : 'bg-gray-200 dark:bg-gray-700 border-gray-300 dark:border-gray-600'
-                }`}
-            >
-              <Text
-                className={`text-sm font-semibold ${
-                  selectedPatientId === p._id
-                    ? 'text-white'
-                    : 'text-gray-800 dark:text-gray-200'
-                }`}
-              >
-                {p.name}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-
-        {/* DATE RANGE FILTER */}
-        <Text className="text-gray-800 dark:text-gray-200 font-semibold mt-4 mb-2">
-          Date Range
-        </Text>
-
-        <View className="flex-row">
-          {(['7d', '14d', '30d', '90d'] as const).map((label) => (
-            <TouchableOpacity
-              key={label}
-              onPress={() => handleRangeChange(label)}
-              className={`px-3 py-2 rounded-full mr-2 border 
-                ${
-                  rangeLabel === label
-                    ? 'bg-green-600 border-green-700'
-                    : 'bg-gray-200 dark:bg-gray-700 border-gray-300 dark:border-gray-600'
-                }`}
-            >
-              <Text
-                className={`text-sm font-semibold ${
-                  rangeLabel === label
-                    ? 'text-white'
-                    : 'text-gray-800 dark:text-gray-200'
-                }`}
-              >
-                {label.toUpperCase()}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        <Text className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-          {dateRange.start.toDateString()} – {dateRange.end.toDateString()}
-        </Text>
-      </View>
-
-      {/* ALERTS */}
-      {alerts.length > 0 && (
-        <View className="bg-red-100 dark:bg-red-900/40 border border-red-300 dark:border-red-700 rounded-2xl p-3 mb-4">
-          <Text className="text-red-700 dark:text-red-300 font-semibold mb-1">
-            Alerts detected
-          </Text>
-          {alerts.map((msg, idx) => (
-            <Text key={idx} className="text-xs text-red-700 dark:text-red-300 mb-1">
-              • {msg}
-            </Text>
-          ))}
-        </View>
-      )}
-
-      {/* ERROR */}
-      {error && (
-        <View className="bg-red-100 dark:bg-red-900/40 border border-red-300 dark:border-red-700 rounded-2xl p-3 mb-4">
-          <Text className="text-red-700 dark:text-red-300 font-semibold mb-1">
-            Error
-          </Text>
-          <Text className="text-xs text-red-700 dark:text-red-300 mb-2">
-            {error}
-          </Text>
-
-          <TouchableOpacity
-            onPress={fetchTrends}
-            className="bg-red-600 dark:bg-red-700 rounded-xl px-3 py-2 self-start"
+    <View className="flex-1 w-full bg-gray-50 dark:bg-gray-900">
+      <ProviderNavbar />
+      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+        <View className="px-4 pt-6 pb-8">
+          {/* Header */}
+          <View 
+            className="mb-8 rounded-3xl p-6 shadow-2xl"
+            style={{ backgroundColor: '#10b981' }}
           >
-            <Text className="text-white text-xs font-semibold">Retry</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* MAIN SCROLL */}
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 32 }}>
-
-        {/* DAILY CHART */}
-        <View className="mb-4 m-2 bg-gray-100 dark:bg-gray-800 p-4 rounded-2xl shadow">
-          <Text className="text-lg font-bold text-gray-800 dark:text-white mb-1">
-            Daily Adherence – {currentPatientName}
-          </Text>
-          <Text className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-            Line chart of adherence percentage per day.
-          </Text>
-
-          {loadingTrends && !trendData ? (
-            <View className="items-center justify-center py-8">
-              <ActivityIndicator size="large" color="#2563eb" />
-            </View>
-          ) : dailyChart ? (
-            <LineChart
-              data={dailyChart}
-              width={screenWidth*0.8}
-              height={220}
-              yAxisSuffix="%"
-              chartConfig={dailyChartConfig}
-              style={{ borderRadius: 16 }}
-              bezier
-              fromZero={true}
-            />
-          ) : (
-            <Text className="text-gray-500 dark:text-gray-400 text-sm mt-2">
-              No daily adherence data in this range.
-            </Text>
-          )}
-        </View>
-
-        {/* MEDICATION CHART */}
-        <View className="mb-4 m-2 bg-gray-100 dark:bg-gray-800 p-4 rounded-2xl shadow">
-          <Text className="text-lg font-bold text-gray-800 dark:text-white mb-1">
-            Medication-Specific Adherence
-          </Text>
-          <Text className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-            Bar chart of average adherence by medication.
-          </Text>
-
-          {loadingTrends && !trendData ? (
-            <View className="items-center justify-center py-8">
-              <ActivityIndicator size="large" color="#2563eb" />
-            </View>
-          ) : medChart ? (
-            <BarChart
-              data={medChart}
-              width={screenWidth*0.8}
-              height={220}
-              yAxisSuffix="%"
-              yAxisLabel=''
-              fromZero
-              chartConfig={specificChartConfig}
-              style={{ borderRadius: 16 }}
-            />
-          ) : (
-            <Text className="text-gray-500 dark:text-gray-400 text-sm mt-2">
-              No medication adherence data in this range.
-            </Text>
-          )}
-        </View>
-
-        {/* WEEKLY SUMMARY */}
-        {trendData?.weeklyAverage && trendData.weeklyAverage.length > 0 && (
-          <View className="mt-2 m-2 bg-gray-100 dark:bg-gray-800 rounded-2xl p-4 shadow">
-            <Text className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">
-              Weekly Average Adherence
-            </Text>
-
-            {trendData.weeklyAverage.map((w) => (
-              <View
-                key={`${w.isoYear}-${w.isoWeek}`}
-                className="flex-row justify-between mb-1"
-              >
-                <Text className="text-xs text-gray-600 dark:text-gray-400">
-                  {w.week}
+            <View className="flex-row items-center justify-between">
+              <View className="flex-1">
+                <Text className="text-3xl font-bold text-white mb-2">
+                  Adherence Reports
                 </Text>
-                <Text className="text-xs font-semibold text-gray-800 dark:text-gray-200">
-                  {w.pct}%
+                <Text className="text-green-100 text-base">
+                  Analytics and insights for patient adherence
                 </Text>
               </View>
-            ))}
+              <View className="bg-white/20 rounded-full p-4 backdrop-blur">
+                <Ionicons name="bar-chart" size={32} color="#fff" />
+              </View>
+            </View>
           </View>
-        )}
 
-        {/* BACK BUTTON */}
-        <TouchableOpacity
-          onPress={() => router.push('/(provider)/ProviderHome')}
-          className="bg-blue-500 px-6 py-3 rounded-xl mt-8"
-        >
-          <Text className="text-white text-lg font-semibold text-center">
-            Back to Provider Home
-          </Text>
-        </TouchableOpacity>
+          {/* SECTION 1: PATIENT SELECTION - Only show if no patientId in route params */}
+          {!routePatientId && (
+            <View className="bg-white dark:bg-gray-800 rounded-3xl p-6 mb-6 shadow-lg border border-gray-100 dark:border-gray-700">
+              <View className="flex-row items-center mb-4">
+                <View className="bg-blue-100 dark:bg-blue-900/30 rounded-xl p-3 mr-3">
+                  <Ionicons name="people" size={24} color="#2563eb" />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-xl font-bold text-gray-900 dark:text-white">
+                    Select Patient
+                  </Text>
+                  <Text className="text-sm text-gray-600 dark:text-gray-400">
+                    Choose a patient to view their adherence reports
+                  </Text>
+                </View>
+              </View>
+
+              <View style={{ zIndex: 1000, elevation: 10 }}>
+                <Dropdown
+                  data={patients.map((p) => ({ label: p.name, value: p._id }))}
+                  labelField="label"
+                  valueField="value"
+                  placeholder={!isPatientFocused ? 'Select Patient' : ' '}
+                  value={selectedPatientId}
+                  onFocus={() => setIsPatientFocused(true)}
+                  onBlur={() => setIsPatientFocused(false)}
+                  onChange={(item) => {
+                    setSelectedPatientId(item.value);
+                    setIsPatientFocused(false);
+                  }}
+                  style={{
+                    backgroundColor: '#f9fafb',
+                    borderRadius: 12,
+                    paddingHorizontal: 16,
+                    paddingVertical: 12,
+                    borderWidth: 1,
+                    borderColor: isPatientFocused ? '#2563eb' : '#e5e7eb',
+                    minHeight: 50,
+                  }}
+                  placeholderStyle={{
+                    color: '#9ca3af',
+                    fontSize: 16,
+                  }}
+                  selectedTextStyle={{
+                    color: '#111827',
+                    fontSize: 16,
+                    fontWeight: '600',
+                  }}
+                  itemTextStyle={{
+                    color: '#111827',
+                    fontSize: 16,
+                  }}
+                  containerStyle={{
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: '#e5e7eb',
+                    maxHeight: 300,
+                  }}
+                  activeColor="#dbeafe"
+                />
+              </View>
+            </View>
+          )}
+
+          {/* SECTION 2: DATE RANGE & ADHERENCE GRAPHS */}
+          {selectedPatientId && (
+            <View className="bg-white dark:bg-gray-800 rounded-3xl p-6 mb-6 shadow-lg border border-gray-100 dark:border-gray-700">
+              <View className="flex-row items-center mb-4">
+                <View className="bg-green-100 dark:bg-green-900/30 rounded-xl p-3 mr-3">
+                  <Ionicons name="calendar" size={24} color="#10b981" />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-xl font-bold text-gray-900 dark:text-white">
+                    Date Range & Adherence Trends
+                  </Text>
+                  <Text className="text-sm text-gray-600 dark:text-gray-400">
+                    Select a time period to view adherence graphs
+                  </Text>
+                </View>
+              </View>
+
+              <View className="mb-4">
+                <View style={{ zIndex: 1000, elevation: 10 }}>
+                  <Dropdown
+                    data={DATE_RANGE_OPTIONS}
+                    labelField="label"
+                    valueField="value"
+                    placeholder={!isRangeFocused ? 'Select Date Range' : ' '}
+                    value={rangeLabel}
+                    onFocus={() => setIsRangeFocused(true)}
+                    onBlur={() => setIsRangeFocused(false)}
+                    onChange={(item) => {
+                      handleRangeChange(item.value as '7d' | '14d' | '30d' | '90d');
+                      setIsRangeFocused(false);
+                    }}
+                    style={{
+                      backgroundColor: '#f9fafb',
+                      borderRadius: 12,
+                      paddingHorizontal: 16,
+                      paddingVertical: 12,
+                      borderWidth: 1,
+                      borderColor: isRangeFocused ? '#10b981' : '#e5e7eb',
+                      minHeight: 50,
+                    }}
+                    placeholderStyle={{
+                      color: '#9ca3af',
+                      fontSize: 16,
+                    }}
+                    selectedTextStyle={{
+                      color: '#111827',
+                      fontSize: 16,
+                      fontWeight: '600',
+                    }}
+                    itemTextStyle={{
+                      color: '#111827',
+                      fontSize: 16,
+                    }}
+                    containerStyle={{
+                      borderRadius: 12,
+                      borderWidth: 1,
+                      borderColor: '#e5e7eb',
+                      maxHeight: 300,
+                    }}
+                    activeColor="#d1fae5"
+                  />
+                </View>
+              </View>
+
+              <View className="bg-gray-50 dark:bg-gray-700 rounded-xl px-4 py-2 mb-6">
+                <Text className="text-xs text-gray-600 dark:text-gray-400 font-medium">
+                  <Ionicons name="time-outline" size={12} color="#6b7280" /> {dateRange.start.toDateString()} – {dateRange.end.toDateString()}
+                </Text>
+              </View>
+
+              {/* Daily Adherence Chart */}
+              <View className="mb-4">
+                <View className="flex-row items-center mb-3">
+                  <View className="bg-blue-100 dark:bg-blue-900/30 rounded-xl p-2 mr-3">
+                    <Ionicons name="trending-up" size={20} color="#2563eb" />
+                  </View>
+                  <Text className="text-lg font-bold text-gray-900 dark:text-white">
+                    Daily Adherence Trend
+                  </Text>
+                </View>
+
+                {loadingTrends && !trendData ? (
+                  <View className="items-center justify-center py-12">
+                    <ActivityIndicator size="large" color="#2563eb" />
+                    <Text className="text-gray-500 dark:text-gray-400 mt-3">Loading chart data...</Text>
+                  </View>
+                ) : dailyChart ? (
+                  <View>
+                    <LineChart
+                      data={dailyChart}
+                      width={screenWidth - 80}
+                      height={220}
+                      yAxisSuffix="%"
+                      chartConfig={dailyChartConfig}
+                      style={{ borderRadius: 16 }}
+                      bezier
+                      fromZero={true}
+                    />
+                  </View>
+                ) : (
+                  <View className="bg-gray-50 dark:bg-gray-700 rounded-xl p-6 items-center">
+                    <Ionicons name="bar-chart-outline" size={48} color="#9ca3af" />
+                    <Text className="text-gray-500 dark:text-gray-400 text-sm mt-3 text-center">
+                      No daily adherence data in this range.
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          )}
+
+          {/* ALERTS */}
+          {alerts.length > 0 && (
+            <View className="bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-700 rounded-3xl p-5 mb-6 shadow-lg">
+              <View className="flex-row items-center mb-3">
+                <View className="bg-red-100 dark:bg-red-900/30 rounded-xl p-2 mr-3">
+                  <Ionicons name="alert-circle" size={24} color="#dc2626" />
+                </View>
+                <Text className="text-red-700 dark:text-red-300 font-bold text-lg">
+                  Alerts Detected
+                </Text>
+              </View>
+              <View className="space-y-2">
+                {alerts.map((msg, idx) => (
+                  <View key={idx} className="flex-row items-start">
+                    <Ionicons name="warning" size={16} color="#dc2626" style={{ marginTop: 2, marginRight: 8 }} />
+                    <Text className="text-sm text-red-700 dark:text-red-300 flex-1">
+                      {msg}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* ERROR */}
+          {error && (
+            <View className="bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-700 rounded-3xl p-5 mb-6 shadow-lg">
+              <View className="flex-row items-center mb-3">
+                <View className="bg-red-100 dark:bg-red-900/30 rounded-xl p-2 mr-3">
+                  <Ionicons name="close-circle" size={24} color="#dc2626" />
+                </View>
+                <Text className="text-red-700 dark:text-red-300 font-bold text-lg">
+                  Error
+                </Text>
+              </View>
+              <Text className="text-sm text-red-700 dark:text-red-300 mb-4">
+                {error}
+              </Text>
+              <TouchableOpacity
+                onPress={fetchTrends}
+                className="bg-red-600 dark:bg-red-700 rounded-xl px-4 py-3 self-start flex-row items-center"
+              >
+                <Ionicons name="refresh" size={16} color="#fff" style={{ marginRight: 6 }} />
+                <Text className="text-white text-sm font-semibold">Retry</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+
+          {/* BACK BUTTON */}
+          <TouchableOpacity
+            onPress={() => router.back()}
+            className="bg-blue-500 px-6 py-4 rounded-xl shadow-lg flex-row items-center justify-center"
+          >
+            <Ionicons name="arrow-back" size={20} color="#fff" style={{ marginRight: 8 }} />
+            <Text className="text-white text-lg font-semibold">
+              Back
+            </Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </View>
   );

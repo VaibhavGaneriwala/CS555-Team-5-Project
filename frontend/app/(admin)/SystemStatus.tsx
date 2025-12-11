@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -54,16 +55,29 @@ export default function SystemStatus() {
       <AdminNavbar />
       <ScrollView className="flex-1">
         <View className="px-4 pt-6 pb-8">
+          {/* Back Button */}
+          <TouchableOpacity
+            onPress={() => router.back()}
+            className="mb-4 flex-row items-center"
+            activeOpacity={0.7}
+          >
+            <View className="bg-white dark:bg-gray-800 rounded-full p-2 shadow-md border border-gray-200 dark:border-gray-700">
+              <Ionicons name="arrow-back" size={20} color="#7c3aed" />
+            </View>
+            <Text className="text-gray-700 dark:text-gray-300 font-semibold ml-2">
+              Back
+            </Text>
+          </TouchableOpacity>
 
-        {/* Header */}
-        <View className="mb-6">
-          <Text className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-            System Information
-          </Text>
-          <Text className="text-gray-600 dark:text-gray-400">
-            Database and system configuration
-          </Text>
-        </View>
+          {/* Header */}
+          <View className="mb-6">
+            <Text className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+              System Information
+            </Text>
+            <Text className="text-gray-600 dark:text-gray-400">
+              Database and system configuration
+            </Text>
+          </View>
 
         {/* Logged In User Info */}
         {loading ? (

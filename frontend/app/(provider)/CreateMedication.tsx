@@ -6,9 +6,11 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
+  Platform,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, router } from "expo-router";
+import ProviderNavbar from '@/components/ProviderNavbar';
 import Constants from "expo-constants";
 
 const API_URL = Constants.expoConfig?.extra?.API_URL ?? "http://localhost:3000";
@@ -24,7 +26,8 @@ const FREQUENCY_OPTIONS = [
 ];
 
 export default function CreateMedication() {
-  const { patientId } = useLocalSearchParams<{ patientId: string }>();
+  const params = useLocalSearchParams<{ patientId?: string }>();
+  const patientId = params?.patientId;
 
   const [name, setName] = useState("");
   const [dosage, setDosage] = useState("");
@@ -34,10 +37,30 @@ export default function CreateMedication() {
   const [endDate, setEndDate] = useState("");
   const [instructions, setInstructions] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
 
   async function handleCreate() {
+    setError(null);
+    setSuccess(false);
+
     if (!name || !dosage || !frequency || !scheduleText || !startDate) {
-      Alert.alert("Missing Required Fields", "Please fill all required fields.");
+      const errorMsg = "Please fill all required fields.";
+      if (Platform.OS === 'web') {
+        setError(errorMsg);
+      } else {
+        Alert.alert("Missing Required Fields", errorMsg);
+      }
+      return;
+    }
+
+    if (!patientId) {
+      const errorMsg = "Patient ID is missing. Please go back and try again.";
+      if (Platform.OS === 'web') {
+        setError(errorMsg);
+      } else {
+        Alert.alert("Error", errorMsg);
+      }
       return;
     }
 
@@ -47,8 +70,39 @@ export default function CreateMedication() {
       .filter(Boolean);
 
     if (!times.length) {
-      Alert.alert("Invalid Schedule", "Please enter at least one time (e.g. 08:00, 20:00).");
+      const errorMsg = "Please enter at least one time (e.g. 08:00, 20:00).";
+      if (Platform.OS === 'web') {
+        setError(errorMsg);
+      } else {
+        Alert.alert("Invalid Schedule", errorMsg);
+      }
       return;
+    }
+
+    // Validate date range
+    if (endDate) {
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+        const errorMsg = "Please enter valid dates in YYYY-MM-DD format.";
+        if (Platform.OS === 'web') {
+          setError(errorMsg);
+        } else {
+          Alert.alert("Invalid Date", errorMsg);
+        }
+        return;
+      }
+
+      if (start > end) {
+        const errorMsg = "Start date cannot be later than end date.";
+        if (Platform.OS === 'web') {
+          setError(errorMsg);
+        } else {
+          Alert.alert("Invalid Date Range", errorMsg);
+        }
+        return;
+      }
     }
 
     const schedulePayload = times.map((time) => ({
@@ -60,6 +114,28 @@ export default function CreateMedication() {
 
     try {
       const token = await AsyncStorage.getItem("token");
+      
+      if (!token) {
+        const errorMsg = "Authentication token missing. Please log in again.";
+        if (Platform.OS === 'web') {
+          setError(errorMsg);
+        } else {
+          Alert.alert("Error", errorMsg);
+        }
+        setLoading(false);
+        return;
+      }
+
+      const requestBody = {
+        patientId,
+        name,
+        dosage,
+        frequency,
+        schedule: schedulePayload,
+        startDate,
+        endDate: endDate || undefined,
+        instructions: instructions || undefined,
+      };
 
       const res = await fetch(`${API_URL}/api/medications`, {
         method: "POST",
@@ -67,48 +143,109 @@ export default function CreateMedication() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          patientId,
-          name,
-          dosage,
-          frequency,       // enum-safe
-          schedule: schedulePayload,
-          startDate,
-          endDate,
-          instructions,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        Alert.alert("Error", data.message || "Failed to create medication");
+        const errorMsg = data.message || "Failed to create medication";
+        if (Platform.OS === 'web') {
+          setError(errorMsg);
+        } else {
+          Alert.alert("Error", errorMsg);
+        }
+        setLoading(false);
         return;
       }
 
-      Alert.alert("Success", "Medication created successfully!");
-      router.push({
-        pathname: "/(provider)/ViewMedications",
-        params: { patientId },
-      });
-    } catch (err) {
-      Alert.alert("Error", "Server error. Try again.");
-    } finally {
+      if (Platform.OS === 'web') {
+        setSuccess(true);
+        // Auto-navigate after a short delay
+        setTimeout(() => {
+          router.push({
+            pathname: "/(provider)/ViewMedications",
+            params: { patientId },
+          });
+        }, 1500);
+      } else {
+        Alert.alert("Success", "Medication created successfully!", [
+          {
+            text: "OK",
+            onPress: () => {
+              router.push({
+                pathname: "/(provider)/ViewMedications",
+                params: { patientId },
+              });
+            },
+          },
+        ]);
+      }
+    } catch (err: any) {
+      console.error("Error creating medication:", err);
+      const errorMsg = err.message || "Server error. Please try again.";
+      if (Platform.OS === 'web') {
+        setError(errorMsg);
+      } else {
+        Alert.alert("Error", errorMsg);
+      }
       setLoading(false);
     }
   }
 
+  if (!patientId) {
+    return (
+      <View className="flex-1 bg-gray-50 dark:bg-gray-900">
+        <ProviderNavbar />
+        <View className="flex-1 items-center justify-center px-4">
+          <Text className="text-red-500 text-lg font-semibold mb-3 text-center">
+            Patient ID is missing. Please go back and try again.
+          </Text>
+          <TouchableOpacity
+            onPress={() => router.push("/(provider)/ViewPatients")}
+            className="bg-blue-500 px-6 py-3 rounded-xl"
+          >
+            <Text className="text-white text-lg font-semibold">Back to Patients</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
   return (
-    <ScrollView className="flex-1 bg-white dark:bg-gray-900 px-4 pt-10 pb-6">
+    <View className="flex-1 bg-gray-50 dark:bg-gray-900">
+      <ProviderNavbar />
+      <ScrollView className="flex-1 px-4 pt-6 pb-6">
       <Text className="text-3xl font-bold text-center mb-6 text-gray-800 dark:text-white">
         Add Medication
       </Text>
+
+      {/* Error Message */}
+      {error && (
+        <View className="bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-700 rounded-xl p-4 mb-4">
+          <Text className="text-red-700 dark:text-red-300 font-semibold text-center">
+            {error}
+          </Text>
+        </View>
+      )}
+
+      {/* Success Message */}
+      {success && (
+        <View className="bg-green-50 dark:bg-green-900/20 border-2 border-green-300 dark:border-green-700 rounded-xl p-4 mb-4">
+          <Text className="text-green-700 dark:text-green-300 font-semibold text-center">
+            Medication created successfully! Redirecting...
+          </Text>
+        </View>
+      )}
 
       <View className="bg-gray-100 dark:bg-gray-800 p-5 rounded-2xl shadow">
         <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-2">Name *</Text>
         <TextInput
           value={name}
-          onChangeText={setName}
+          onChangeText={(text) => {
+            setName(text);
+            if (error) setError(null);
+          }}
           className="bg-white dark:bg-gray-700 rounded-xl mt-1 px-4 py-3 text-gray-900 dark:text-white"
           placeholder="Medication Name"
           placeholderTextColor="#aaa"
@@ -117,7 +254,10 @@ export default function CreateMedication() {
         <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4">Dosage *</Text>
         <TextInput
           value={dosage}
-          onChangeText={setDosage}
+          onChangeText={(text) => {
+            setDosage(text);
+            if (error) setError(null);
+          }}
           className="bg-white dark:bg-gray-700 rounded-xl mt-1 px-4 py-3"
           placeholder="e.g. 500mg"
           placeholderTextColor="#aaa"
@@ -155,7 +295,10 @@ export default function CreateMedication() {
         </Text>
         <TextInput
           value={scheduleText}
-          onChangeText={setScheduleText}
+          onChangeText={(text) => {
+            setScheduleText(text);
+            if (error) setError(null);
+          }}
           className="bg-white dark:bg-gray-700 rounded-xl mt-1 px-4 py-3"
           placeholder="e.g. 08:00, 20:00"
           placeholderTextColor="#aaa"
@@ -164,7 +307,10 @@ export default function CreateMedication() {
         <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4">Start Date *</Text>
         <TextInput
           value={startDate}
-          onChangeText={setStartDate}
+          onChangeText={(text) => {
+            setStartDate(text);
+            if (error) setError(null);
+          }}
           className="bg-white dark:bg-gray-700 rounded-xl mt-1 px-4 py-3"
           placeholder="YYYY-MM-DD"
           placeholderTextColor="#aaa"
@@ -173,7 +319,10 @@ export default function CreateMedication() {
         <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4">End Date</Text>
         <TextInput
           value={endDate}
-          onChangeText={setEndDate}
+          onChangeText={(text) => {
+            setEndDate(text);
+            if (error) setError(null);
+          }}
           className="bg-white dark:bg-gray-700 rounded-xl mt-1 px-4 py-3"
           placeholder="YYYY-MM-DD"
           placeholderTextColor="#aaa"
@@ -212,6 +361,7 @@ export default function CreateMedication() {
           Back to Medications
         </Text>
       </TouchableOpacity>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }

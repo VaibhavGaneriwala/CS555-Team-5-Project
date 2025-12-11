@@ -297,6 +297,17 @@ exports.updateUser = async (req, res) => {
             return res.status(404).json({ message: 'User not found' });
         }
 
+        // Prevent admins from changing their own email or account status
+        const isEditingSelf = user._id.toString() === req.user.id;
+        if (isEditingSelf) {
+            if (email && email !== user.email) {
+                return res.status(403).json({ message: 'You cannot change your own email address' });
+            }
+            if (typeof isActive === 'boolean' && isActive !== user.isActive) {
+                return res.status(403).json({ message: 'You cannot change your own account status' });
+            }
+        }
+
         // Check if email is being changed and if it's already taken
         if (email && email !== user.email) {
             const emailExists = await User.findOne({ email: email.toLowerCase() });
@@ -308,13 +319,13 @@ exports.updateUser = async (req, res) => {
         // Update fields
         if (firstName) user.firstName = firstName;
         if (lastName) user.lastName = lastName;
-        if (email) user.email = email.toLowerCase();
+        if (email && !isEditingSelf) user.email = email.toLowerCase();
         if (phoneNumber) user.phoneNumber = phoneNumber;
         if (dateOfBirth) user.dateOfBirth = dateOfBirth;
         if (gender) user.gender = gender;
         if (address) user.address = address;
         if (role) user.role = role;
-        if (typeof isActive === 'boolean') user.isActive = isActive;
+        if (typeof isActive === 'boolean' && !isEditingSelf) user.isActive = isActive;
 
         await user.save();
 

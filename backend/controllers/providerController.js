@@ -4,7 +4,7 @@ const AdherenceLog = require('../models/AdherenceLog');
 exports.getAssignedPatients = async (req, res) => {
   try {
     const providerId = req.user.id;
-    const provider = await User.findById(providerId).populate('patients', 'firstName lastName email dateOfBirth gender');
+    const provider = await User.findById(providerId).populate('patients', 'firstName lastName email dateOfBirth gender phoneNumber address');
 
     if (!provider || provider.role !== 'provider') {
       return res.status(403).json({ message: 'Access denied: only providers can view patients.' });
@@ -25,6 +25,8 @@ exports.getAssignedPatients = async (req, res) => {
           email: patient.email,
           gender: patient.gender,
           dateOfBirth: patient.dateOfBirth,
+          phoneNumber: patient.phoneNumber,
+          address: patient.address,
           adherence: adherenceRate,
         };
       })

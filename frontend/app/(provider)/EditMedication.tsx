@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, router } from "expo-router";
+import ProviderNavbar from '@/components/ProviderNavbar';
 import Constants from "expo-constants";
 
 const API_URL = Constants.expoConfig?.extra?.API_URL ?? "http://localhost:3000";
@@ -157,7 +158,9 @@ export default function EditMedication() {
   }
 
   return (
-    <ScrollView className="flex-1 bg-white dark:bg-gray-900 px-4 pt-10 pb-6">
+    <View className="flex-1 bg-gray-50 dark:bg-gray-900">
+      <ProviderNavbar />
+      <ScrollView className="flex-1 px-4 pt-6 pb-6">
       <Text className="text-3xl font-bold text-center mb-6 text-gray-800 dark:text-white">
         Edit Medication
       </Text>
@@ -261,6 +264,7 @@ export default function EditMedication() {
           Back to Medications
         </Text>
       </TouchableOpacity>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }

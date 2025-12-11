@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
-import { TouchableOpacity, View, ActivityIndicator } from 'react-native';
+import { View, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function ProviderLayout() {
@@ -57,50 +56,12 @@ export default function ProviderLayout() {
     );
   }
 
-  // Don't render protected routes if not authenticated (redirect will happen)
-  if (!isAuthenticated) {
-    return null;
-  }
-
+  // Always return Stack to maintain navigation context
+  // If not authenticated, the redirect will happen via useEffect
   return (
     <Stack
       screenOptions={{
-        headerShown: true,
-        headerTitleAlign: 'center',
-        headerLeft: () => (
-          <TouchableOpacity
-            activeOpacity={0.6}
-            onPress={() => {
-              try {
-                const { router } = require('expo-router');
-                if (router && router.push) {
-                  router.push('/(provider)/ProviderHome');
-                }
-              } catch {
-              }
-            }}
-            style={{ marginLeft: 15 }}
-          >
-            <Ionicons name="home-outline" size={24} className={'text-black dark:text-white'}/>
-          </TouchableOpacity>
-        ),
-        headerRight: () => (
-          <TouchableOpacity
-            activeOpacity={0.6}
-            onPress={() => {
-              try {
-                const { router } = require('expo-router');
-                if (router && router.push) {
-                  router.push('/');
-                }
-              } catch {
-              }
-            }}
-            style={{ marginRight: 15 }}
-          >
-            <Ionicons name="exit-outline" size={24} className={'text-black dark:text-white'}/>
-          </TouchableOpacity>
-        ),
+        headerShown: false,
       }}
     />
   );

@@ -10,6 +10,7 @@ import {
   Platform,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
@@ -571,6 +572,20 @@ export default function ViewAdherenceLogs() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
+          {/* Back Button */}
+          <TouchableOpacity
+            onPress={() => router.back()}
+            className="mb-4 flex-row items-center"
+            activeOpacity={0.7}
+          >
+            <View className="bg-white dark:bg-gray-800 rounded-full p-2 shadow-md border border-gray-200 dark:border-gray-700">
+              <Ionicons name="arrow-back" size={20} color="#10b981" />
+            </View>
+            <Text className="text-gray-700 dark:text-gray-300 font-semibold ml-2">
+              Back
+            </Text>
+          </TouchableOpacity>
+
           {/* Header */}
           <View
             className="mb-6 rounded-3xl p-6 shadow-2xl"

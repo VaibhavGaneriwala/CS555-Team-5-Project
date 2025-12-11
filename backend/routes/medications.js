@@ -20,6 +20,7 @@ router
   .route('/:id')
   .get(protect, getMedicationById)
   .put(protect, updateMedication)
+  .patch(protect, updateMedication)
   .delete(protect, deleteMedication);
 
 // 👇 NEW: smart reminder toggle

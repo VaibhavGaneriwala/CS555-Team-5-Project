@@ -94,16 +94,27 @@ export default function PatientLayout() {
         ),
         headerRight: () => (
           <TouchableOpacity
-            onPress={() => {
+            onPress={async () => {
               try {
+                await AsyncStorage.removeItem('token');
                 const { router } = require('expo-router');
-                if (router && router.push) {
-                  router.push('/');
+                if (router && router.replace) {
+                  router.replace('/');
                 }
-              } catch {
+              } catch (err) {
+                console.error('Logout error:', err);
+                // Still try to navigate even if token removal fails
+                try {
+                  const { router } = require('expo-router');
+                  if (router && router.replace) {
+                    router.replace('/');
+                  }
+                } catch {
+                }
               }
             }}
             style={{ marginRight: 15 }}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             <Ionicons name="exit-outline" size={24} {...iconProps} />
           </TouchableOpacity>

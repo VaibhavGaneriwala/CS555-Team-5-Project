@@ -8,7 +8,11 @@ import {
   Alert,
   Platform,
   RefreshControl,
+  Modal,
+  TextInput,
+  Pressable,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,6 +20,16 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import AdminNavbar from '@/components/AdminNavbar';
 import { API_URL } from '@/utils/apiConfig';
+
+const FREQUENCY_OPTIONS = [
+  { value: "once-daily", label: "Once daily" },
+  { value: "twice-daily", label: "Twice daily" },
+  { value: "three-times-daily", label: "3x daily" },
+  { value: "four-times-daily", label: "4x daily" },
+  { value: "weekly", label: "Weekly" },
+  { value: "as-needed", label: "As needed" },
+  { value: "custom", label: "Custom" },
+];
 
 interface ScheduleEntry {
   time: string;
@@ -44,6 +58,23 @@ export default function ViewMedications() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Edit modal state
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [selectedMedication, setSelectedMedication] = useState<Medication | null>(null);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editSuccessMessage, setEditSuccessMessage] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editDosage, setEditDosage] = useState("");
+  const [editFrequency, setEditFrequency] = useState<string>("once-daily");
+  const [editScheduleText, setEditScheduleText] = useState("");
+  const [editStartDate, setEditStartDate] = useState("");
+  const [editEndDate, setEditEndDate] = useState("");
+  const [editInstructions, setEditInstructions] = useState("");
+  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
+  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
+  const [startDateValue, setStartDateValue] = useState<Date>(new Date());
+  const [endDateValue, setEndDateValue] = useState<Date | null>(null);
 
   const fetchMedications = async () => {
     try {
@@ -165,6 +196,161 @@ export default function ViewMedications() {
         return `${time}${days}`;
       })
       .join(", ");
+  };
+
+  const handleEditMedication = (medication: Medication) => {
+    setSelectedMedication(medication);
+    setEditName(medication.name);
+    setEditDosage(medication.dosage);
+    setEditFrequency(medication.frequency || 'once-daily');
+    const schedule = medication.schedule || [];
+    const times = schedule.map((s) => s.time).join(', ');
+    setEditScheduleText(times);
+    const startDate = medication.startDate ? new Date(medication.startDate) : new Date();
+    const endDate = medication.endDate ? new Date(medication.endDate) : null;
+    setStartDateValue(startDate);
+    setEndDateValue(endDate);
+    setEditStartDate(medication.startDate?.slice(0, 10) || '');
+    setEditEndDate(medication.endDate?.slice(0, 10) || '');
+    setEditInstructions(medication.instructions || '');
+    setEditSuccessMessage(null);
+    setEditModalVisible(true);
+  };
+
+  const handleStartDateChange = (event: any, selectedDate?: Date) => {
+    if (Platform.OS === 'android') {
+      setShowStartDatePicker(false);
+      if (selectedDate) {
+        setStartDateValue(selectedDate);
+        setEditStartDate(selectedDate.toISOString().slice(0, 10));
+      }
+    } else {
+      // iOS - update the value but keep picker open until Done is pressed
+      if (selectedDate) {
+        setStartDateValue(selectedDate);
+      }
+    }
+  };
+
+  const handleStartDateConfirm = () => {
+    setShowStartDatePicker(false);
+    setEditStartDate(startDateValue.toISOString().slice(0, 10));
+  };
+
+  const handleEndDateChange = (event: any, selectedDate?: Date) => {
+    if (Platform.OS === 'android') {
+      setShowEndDatePicker(false);
+      if (selectedDate) {
+        setEndDateValue(selectedDate);
+        setEditEndDate(selectedDate.toISOString().slice(0, 10));
+      } else if (event.type === 'dismissed') {
+        setEndDateValue(null);
+        setEditEndDate('');
+      }
+    } else {
+      // iOS - update the value but keep picker open until Done is pressed
+      if (selectedDate) {
+        setEndDateValue(selectedDate);
+      }
+    }
+  };
+
+  const handleEndDateConfirm = () => {
+    setShowEndDatePicker(false);
+    if (endDateValue) {
+      setEditEndDate(endDateValue.toISOString().slice(0, 10));
+    } else {
+      setEditEndDate('');
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    if (!selectedMedication) return;
+
+    if (!editName || !editDosage || !editFrequency || !editScheduleText || !editStartDate) {
+      if (Platform.OS === 'web') {
+        window.alert('Please fill all required fields.');
+      } else {
+        Alert.alert('Missing Required Fields', 'Please fill all required fields.');
+      }
+      return;
+    }
+
+    const times = editScheduleText
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean);
+
+    if (!times.length) {
+      if (Platform.OS === 'web') {
+        window.alert('Please enter at least one time.');
+      } else {
+        Alert.alert('Invalid Schedule', 'Please enter at least one time.');
+      }
+      return;
+    }
+
+    const schedulePayload = times.map((time) => ({
+      time,
+      days: [],
+    }));
+
+    setEditSaving(true);
+
+    try {
+      const token = await AsyncStorage.getItem('token');
+
+      const response = await fetch(`${API_URL}/api/medications/${selectedMedication._id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          name: editName,
+          dosage: editDosage,
+          frequency: editFrequency,
+          schedule: schedulePayload,
+          startDate: editStartDate,
+          endDate: editEndDate,
+          instructions: editInstructions,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        if (Platform.OS === 'web') {
+          setEditSuccessMessage(`❌ ${data.message || 'Failed to update medication'}`);
+          setTimeout(() => setEditSuccessMessage(null), 3000);
+        } else {
+          Alert.alert('Error', data.message || 'Failed to update medication');
+        }
+        return;
+      }
+
+      if (Platform.OS === 'web') {
+        setEditSuccessMessage('✅ Medication updated successfully!');
+        setTimeout(() => {
+          setEditSuccessMessage(null);
+          setEditModalVisible(false);
+          fetchMedications();
+        }, 1500);
+      } else {
+        Alert.alert('Success', 'Medication updated successfully!');
+        setEditModalVisible(false);
+        fetchMedications();
+      }
+    } catch (err) {
+      if (Platform.OS === 'web') {
+        setEditSuccessMessage('❌ Server error while saving.');
+        setTimeout(() => setEditSuccessMessage(null), 3000);
+      } else {
+        Alert.alert('Error', 'Server error while saving.');
+      }
+    } finally {
+      setEditSaving(false);
+    }
   };
 
   const exportToPDF = async () => {
@@ -488,6 +674,20 @@ export default function ViewMedications() {
         }
       >
         <View className="px-4 pt-6 pb-8">
+          {/* Back Button */}
+          <TouchableOpacity
+            onPress={() => router.back()}
+            className="mb-4 flex-row items-center"
+            activeOpacity={0.7}
+          >
+            <View className="bg-white dark:bg-gray-800 rounded-full p-2 shadow-md border border-gray-200 dark:border-gray-700">
+              <Ionicons name="arrow-back" size={20} color="#059669" />
+            </View>
+            <Text className="text-gray-700 dark:text-gray-300 font-semibold ml-2">
+              Back
+            </Text>
+          </TouchableOpacity>
+
           {/* Header */}
           <View
             className="mb-6 rounded-3xl p-6 shadow-2xl"
@@ -599,12 +799,7 @@ export default function ViewMedications() {
                 {/* Edit and Delete Buttons - Separate Row */}
                 <View className="mt-3 flex-row justify-end gap-2">
                   <TouchableOpacity
-                    onPress={() => {
-                      router.push({
-                        pathname: '/(admin)/EditMedication' as any,
-                        params: { medicationId: med._id },
-                      });
-                    }}
+                    onPress={() => handleEditMedication(med)}
                     className="bg-blue-500 px-3 py-1.5 rounded-lg shadow-md flex-row items-center justify-center"
                     activeOpacity={0.7}
                     hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
@@ -629,6 +824,415 @@ export default function ViewMedications() {
           )}
         </View>
       </ScrollView>
+
+      {/* Edit Medication Modal */}
+      <Modal
+        visible={editModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setEditModalVisible(false)}
+      >
+        {Platform.OS === 'web' ? (
+          <View className="flex-1 justify-center items-center bg-black/60">
+            <Pressable 
+              style={{ 
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0
+              }}
+              onPress={() => setEditModalVisible(false)}
+            />
+            <View 
+              className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-2xl" 
+              style={{ 
+                maxHeight: '90%',
+                maxWidth: 800,
+                width: '90%'
+              }}
+              onStartShouldSetResponder={() => true}
+            >
+              <View className="flex-row justify-between items-center mb-6 pb-4 border-b-2 border-gray-200 dark:border-gray-700">
+                <Text className="text-2xl font-bold text-gray-800 dark:text-white">
+                  Edit Medication
+                </Text>
+                <TouchableOpacity 
+                  onPress={() => setEditModalVisible(false)}
+                  className="bg-gray-100 dark:bg-gray-700 rounded-full p-2"
+                >
+                  <Ionicons name="close" size={24} color="#6b7280" />
+                </TouchableOpacity>
+              </View>
+
+              {editSuccessMessage && (
+                <View className={`mb-4 p-3 rounded-xl ${
+                  editSuccessMessage.includes('✅') 
+                    ? 'bg-green-100 dark:bg-green-900/30' 
+                    : 'bg-red-100 dark:bg-red-900/30'
+                }`}>
+                  <Text className={`text-center font-semibold ${
+                    editSuccessMessage.includes('✅')
+                      ? 'text-green-700 dark:text-green-400'
+                      : 'text-red-700 dark:text-red-400'
+                  }`}>
+                    {editSuccessMessage}
+                  </Text>
+                </View>
+              )}
+
+              <ScrollView className="flex-1" style={{ maxHeight: 600 }}>
+                <View className="bg-gray-50 dark:bg-gray-700 p-5 rounded-2xl">
+                  <Text className="text-gray-700 dark:text-gray-300 font-semibold mb-2">Name *</Text>
+                  <TextInput
+                    value={editName}
+                    onChangeText={setEditName}
+                    className="bg-white dark:bg-gray-600 rounded-xl px-4 py-3 text-gray-900 dark:text-white border-2 border-gray-200 dark:border-gray-500"
+                    style={{ fontSize: 16 }}
+                  />
+
+                  <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4 mb-2">Dosage *</Text>
+                  <TextInput
+                    value={editDosage}
+                    onChangeText={setEditDosage}
+                    className="bg-white dark:bg-gray-600 rounded-xl px-4 py-3 text-gray-900 dark:text-white border-2 border-gray-200 dark:border-gray-500"
+                    style={{ fontSize: 16 }}
+                  />
+
+                  <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4 mb-2">
+                    Frequency * (tap to select)
+                  </Text>
+                  <View className="flex-row flex-wrap mt-1">
+                    {FREQUENCY_OPTIONS.map((opt) => (
+                      <TouchableOpacity
+                        key={opt.value}
+                        onPress={() => setEditFrequency(opt.value)}
+                        className={`px-3 py-2 mr-2 mb-2 rounded-full border ${
+                          editFrequency === opt.value
+                            ? 'bg-blue-600 border-blue-700'
+                            : 'bg-white dark:bg-gray-600 border-gray-300 dark:border-gray-500'
+                        }`}
+                        activeOpacity={0.7}
+                      >
+                        <Text
+                          className={`text-xs font-semibold ${
+                            editFrequency === opt.value
+                              ? 'text-white'
+                              : 'text-gray-800 dark:text-gray-200'
+                          }`}
+                        >
+                          {opt.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4 mb-2">
+                    Schedule * (comma-separated times)
+                  </Text>
+                  <TextInput
+                    value={editScheduleText}
+                    onChangeText={setEditScheduleText}
+                    className="bg-white dark:bg-gray-600 rounded-xl px-4 py-3 text-gray-900 dark:text-white border-2 border-gray-200 dark:border-gray-500"
+                    style={{ fontSize: 16 }}
+                    placeholder="e.g., 08:00, 20:00"
+                    placeholderTextColor="#9CA3AF"
+                  />
+
+                  <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4 mb-2">Start Date *</Text>
+                  <input
+                    type="date"
+                    value={editStartDate}
+                    onChange={(e) => {
+                      setEditStartDate(e.target.value);
+                      if (e.target.value) {
+                        setStartDateValue(new Date(e.target.value));
+                      }
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      borderRadius: '12px',
+                      border: '2px solid #e5e7eb',
+                      fontSize: '16px',
+                      backgroundColor: '#fff',
+                      color: '#111827',
+                    }}
+                    className="dark:bg-gray-600 dark:border-gray-500 dark:text-white"
+                  />
+
+                  <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4 mb-2">End Date</Text>
+                  <input
+                    type="date"
+                    value={editEndDate}
+                    onChange={(e) => {
+                      setEditEndDate(e.target.value);
+                      if (e.target.value) {
+                        setEndDateValue(new Date(e.target.value));
+                      } else {
+                        setEndDateValue(null);
+                      }
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      borderRadius: '12px',
+                      border: '2px solid #e5e7eb',
+                      fontSize: '16px',
+                      backgroundColor: '#fff',
+                      color: '#111827',
+                    }}
+                    className="dark:bg-gray-600 dark:border-gray-500 dark:text-white"
+                  />
+
+                  <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4 mb-2">Instructions</Text>
+                  <TextInput
+                    value={editInstructions}
+                    onChangeText={setEditInstructions}
+                    multiline
+                    className="bg-white dark:bg-gray-600 rounded-xl px-4 py-3 text-gray-900 dark:text-white border-2 border-gray-200 dark:border-gray-500"
+                    style={{ fontSize: 16, minHeight: 80 }}
+                    placeholder="Optional instructions..."
+                    placeholderTextColor="#9CA3AF"
+                  />
+                </View>
+
+                <View className="flex-row gap-3 mt-6">
+                  <TouchableOpacity
+                    onPress={handleSaveEdit}
+                    disabled={editSaving}
+                    className={`flex-1 px-6 py-4 rounded-2xl ${
+                      editSaving ? 'bg-blue-300' : 'bg-blue-600'
+                    }`}
+                    activeOpacity={0.8}
+                  >
+                    <Text className="text-white text-lg font-bold text-center">
+                      {editSaving ? 'Saving...' : 'Save Changes'}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => setEditModalVisible(false)}
+                    disabled={editSaving}
+                    className="flex-1 px-6 py-4 rounded-2xl bg-gray-500"
+                    activeOpacity={0.8}
+                  >
+                    <Text className="text-white text-lg font-bold text-center">Cancel</Text>
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
+            </View>
+          </View>
+        ) : (
+          <View className="flex-1 justify-end bg-black/60">
+            <View 
+              className="bg-white dark:bg-gray-800 rounded-t-3xl p-6 shadow-2xl" 
+              style={{ height: '90%' }}
+            >
+              <View className="flex-row justify-between items-center mb-6 pb-4 border-b-2 border-gray-200 dark:border-gray-700">
+                <Text className="text-2xl font-bold text-gray-800 dark:text-white">
+                  Edit Medication
+                </Text>
+                <TouchableOpacity 
+                  onPress={() => setEditModalVisible(false)}
+                  className="bg-gray-100 dark:bg-gray-700 rounded-full p-2"
+                >
+                  <Ionicons name="close" size={24} color="#6b7280" />
+                </TouchableOpacity>
+              </View>
+
+              {editSuccessMessage && (
+                <View className={`mb-4 p-3 rounded-xl ${
+                  editSuccessMessage.includes('✅') 
+                    ? 'bg-green-100 dark:bg-green-900/30' 
+                    : 'bg-red-100 dark:bg-red-900/30'
+                }`}>
+                  <Text className={`text-center font-semibold ${
+                    editSuccessMessage.includes('✅')
+                      ? 'text-green-700 dark:text-green-400'
+                      : 'text-red-700 dark:text-red-400'
+                  }`}>
+                    {editSuccessMessage}
+                  </Text>
+                </View>
+              )}
+
+              <ScrollView className="flex-1">
+                <View className="bg-gray-50 dark:bg-gray-700 p-5 rounded-2xl">
+                  <Text className="text-gray-700 dark:text-gray-300 font-semibold mb-2">Name *</Text>
+                  <TextInput
+                    value={editName}
+                    onChangeText={setEditName}
+                    className="bg-white dark:bg-gray-600 rounded-xl px-4 py-3 text-gray-900 dark:text-white border-2 border-gray-200 dark:border-gray-500"
+                    style={{ fontSize: 16 }}
+                  />
+
+                  <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4 mb-2">Dosage *</Text>
+                  <TextInput
+                    value={editDosage}
+                    onChangeText={setEditDosage}
+                    className="bg-white dark:bg-gray-600 rounded-xl px-4 py-3 text-gray-900 dark:text-white border-2 border-gray-200 dark:border-gray-500"
+                    style={{ fontSize: 16 }}
+                  />
+
+                  <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4 mb-2">
+                    Frequency * (tap to select)
+                  </Text>
+                  <View className="flex-row flex-wrap mt-1">
+                    {FREQUENCY_OPTIONS.map((opt) => (
+                      <TouchableOpacity
+                        key={opt.value}
+                        onPress={() => setEditFrequency(opt.value)}
+                        className={`px-3 py-2 mr-2 mb-2 rounded-full border ${
+                          editFrequency === opt.value
+                            ? 'bg-blue-600 border-blue-700'
+                            : 'bg-white dark:bg-gray-600 border-gray-300 dark:border-gray-500'
+                        }`}
+                        activeOpacity={0.7}
+                      >
+                        <Text
+                          className={`text-xs font-semibold ${
+                            editFrequency === opt.value
+                              ? 'text-white'
+                              : 'text-gray-800 dark:text-gray-200'
+                          }`}
+                        >
+                          {opt.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4 mb-2">
+                    Schedule * (comma-separated times)
+                  </Text>
+                  <TextInput
+                    value={editScheduleText}
+                    onChangeText={setEditScheduleText}
+                    className="bg-white dark:bg-gray-600 rounded-xl px-4 py-3 text-gray-900 dark:text-white border-2 border-gray-200 dark:border-gray-500"
+                    style={{ fontSize: 16 }}
+                    placeholder="e.g., 08:00, 20:00"
+                    placeholderTextColor="#9CA3AF"
+                  />
+
+                  <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4 mb-2">Start Date *</Text>
+                  <View>
+                    <TouchableOpacity
+                      onPress={() => setShowStartDatePicker(true)}
+                      className="bg-white dark:bg-gray-600 rounded-xl px-4 py-3 border-2 border-gray-200 dark:border-gray-500"
+                    >
+                      <Text className="text-gray-900 dark:text-white" style={{ fontSize: 16 }}>
+                        {editStartDate || 'Select start date'}
+                      </Text>
+                    </TouchableOpacity>
+                    {showStartDatePicker && (
+                      <View>
+                        {Platform.OS === 'ios' && (
+                          <View className="flex-row justify-end gap-2 mt-2 mb-2">
+                            <TouchableOpacity
+                              onPress={() => setShowStartDatePicker(false)}
+                              className="px-4 py-2 rounded-lg bg-gray-200 dark:bg-gray-700"
+                            >
+                              <Text className="text-gray-700 dark:text-gray-300 font-semibold">Cancel</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              onPress={handleStartDateConfirm}
+                              className="px-4 py-2 rounded-lg bg-blue-600"
+                            >
+                              <Text className="text-white font-semibold">Done</Text>
+                            </TouchableOpacity>
+                          </View>
+                        )}
+                        <DateTimePicker
+                          value={startDateValue}
+                          mode="date"
+                          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                          onChange={handleStartDateChange}
+                          maximumDate={new Date(2100, 11, 31)}
+                          minimumDate={new Date(1900, 0, 1)}
+                        />
+                      </View>
+                    )}
+                  </View>
+
+                  <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4 mb-2">End Date</Text>
+                  <View>
+                    <TouchableOpacity
+                      onPress={() => setShowEndDatePicker(true)}
+                      className="bg-white dark:bg-gray-600 rounded-xl px-4 py-3 border-2 border-gray-200 dark:border-gray-500"
+                    >
+                      <Text className="text-gray-900 dark:text-white" style={{ fontSize: 16 }}>
+                        {editEndDate || 'Select end date (optional)'}
+                      </Text>
+                    </TouchableOpacity>
+                    {showEndDatePicker && (
+                      <View>
+                        {Platform.OS === 'ios' && (
+                          <View className="flex-row justify-end gap-2 mt-2 mb-2">
+                            <TouchableOpacity
+                              onPress={() => setShowEndDatePicker(false)}
+                              className="px-4 py-2 rounded-lg bg-gray-200 dark:bg-gray-700"
+                            >
+                              <Text className="text-gray-700 dark:text-gray-300 font-semibold">Cancel</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              onPress={handleEndDateConfirm}
+                              className="px-4 py-2 rounded-lg bg-blue-600"
+                            >
+                              <Text className="text-white font-semibold">Done</Text>
+                            </TouchableOpacity>
+                          </View>
+                        )}
+                        <DateTimePicker
+                          value={endDateValue || new Date()}
+                          mode="date"
+                          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                          onChange={handleEndDateChange}
+                          maximumDate={new Date(2100, 11, 31)}
+                          minimumDate={startDateValue}
+                        />
+                      </View>
+                    )}
+                  </View>
+
+                  <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4 mb-2">Instructions</Text>
+                  <TextInput
+                    value={editInstructions}
+                    onChangeText={setEditInstructions}
+                    multiline
+                    className="bg-white dark:bg-gray-600 rounded-xl px-4 py-3 text-gray-900 dark:text-white border-2 border-gray-200 dark:border-gray-500"
+                    style={{ fontSize: 16, minHeight: 80 }}
+                    placeholder="Optional instructions..."
+                    placeholderTextColor="#9CA3AF"
+                  />
+                </View>
+
+                <View className="flex-row gap-3 mt-6">
+                  <TouchableOpacity
+                    onPress={handleSaveEdit}
+                    disabled={editSaving}
+                    className={`flex-1 px-6 py-4 rounded-2xl ${
+                      editSaving ? 'bg-blue-300' : 'bg-blue-600'
+                    }`}
+                    activeOpacity={0.8}
+                  >
+                    <Text className="text-white text-lg font-bold text-center">
+                      {editSaving ? 'Saving...' : 'Save Changes'}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => setEditModalVisible(false)}
+                    disabled={editSaving}
+                    className="flex-1 px-6 py-4 rounded-2xl bg-gray-500"
+                    activeOpacity={0.8}
+                  >
+                    <Text className="text-white text-lg font-bold text-center">Cancel</Text>
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
+            </View>
+          </View>
+        )}
+      </Modal>
     </View>
   );
 }

@@ -553,14 +553,37 @@ export default function ViewUsers() {
       return;
     }
 
-    // Use window.confirm for web compatibility
-    const confirmed = window.confirm(
-      `Are you sure you want to permanently delete ${userName}? This action cannot be undone.`
-    );
+    const message = `Are you sure you want to permanently delete ${userName}? This action cannot be undone.`;
 
-    if (!confirmed) {
+    // Use platform-appropriate confirmation
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm(message);
+      if (!confirmed) {
+        return;
+      }
+      // Proceed with deletion on web
+      await performDelete(userId);
+    } else {
+      // Use Alert.alert for mobile
+      Alert.alert(
+        'Delete User',
+        message,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: async () => {
+              await performDelete(userId);
+            },
+          },
+        ]
+      );
       return;
     }
+  };
+
+  const performDelete = async (userId: string) => {
 
     try {
       const token = await AsyncStorage.getItem('token');
@@ -1011,6 +1034,7 @@ export default function ViewUsers() {
       <EditUserModal
         visible={editUserModalVisible}
         userId={selectedUserId}
+        currentUserId={currentUserId}
         onClose={() => {
           setEditUserModalVisible(false);
           setSelectedUserId(null);
