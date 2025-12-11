@@ -126,7 +126,15 @@ exports.updateMedication = async (req, res) => {
         if (!authorized) {
             return res.status(403).json({ message: 'You are not authorized to update this medication' });
         }
-        medication = await Medication.findByIdAndUpdate(req.params.id, req.body, {new: true, runValidators: true});
+        
+        // Only name, dosage, and startDate are required for updates
+        const { name, dosage, startDate } = req.body;
+        if (!name || !dosage || !startDate) {
+            return res.status(400).json({ message: 'Name, dosage, and start date are required fields' });
+        }
+        
+        // Update medication (frequency and schedule are optional)
+        medication = await Medication.findByIdAndUpdate(req.params.id, req.body, {new: true, runValidators: false});
         res.status(200).json(medication);
     } catch (error){
         console.error(error);

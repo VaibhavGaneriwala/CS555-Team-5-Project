@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, RefreshControl, Modal, TextInput, Alert, Platform, Pressable, KeyboardAvoidingView } from 'react-native';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import ProviderNavbar from '@/components/ProviderNavbar';
 import { API_URL } from '@/utils/apiConfig';
+import { Dropdown } from 'react-native-element-dropdown';
 
 interface Provider {
   firstName: string;
@@ -12,6 +13,12 @@ interface Provider {
   email: string;
   role: string;
   phoneNumber?: string;
+  address?: {
+    streetAddress: string;
+    city: string;
+    state: string;
+    zipcode: string;
+  };
 }
 
 interface ProviderStats {
@@ -21,6 +28,14 @@ interface ProviderStats {
   recentLogs: number;
 }
 
+const US_STATES = [
+  'AL', 'AK', 'AZ', 'AR', 'AS', 'CA', 'CO', 'CT', 'DE', 'DC', 'FL', 'GA',
+  'GU', 'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD', 'MA',
+  'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ', 'NM', 'NY', 'NC',
+  'ND', 'MP', 'OH', 'OK', 'OR', 'PA', 'PR', 'RI', 'SC', 'SD', 'TN', 'TX',
+  'TT', 'UT', 'VT', 'VA', 'VI', 'WA', 'WV', 'WI', 'WY', 'Other'
+];
+
 export default function ProviderHome() {
   const [provider, setProvider] = useState<Provider | null>(null);
   const [stats, setStats] = useState<ProviderStats | null>(null);
@@ -28,6 +43,14 @@ export default function ProviderHome() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [streetAddress, setStreetAddress] = useState('');
+  const [city, setCity] = useState('');
+  const [state, setState] = useState('');
+  const [zipcode, setZipcode] = useState('');
+  const [isFocusState, setIsFocusState] = useState(false);
 
   useEffect(() => {
     const loadToken = async () => {
@@ -57,6 +80,7 @@ export default function ProviderHome() {
         email: data.email ?? "",
         role: data.role ?? "provider",
         phoneNumber: data.phoneNumber ?? "",
+        address: data.address || undefined,
       };
 
       setProvider(normalized);
@@ -182,6 +206,85 @@ export default function ProviderHome() {
     fetchStats();
   };
 
+  const handleOpenEditModal = () => {
+    if (provider) {
+      setPhoneNumber(provider.phoneNumber || '');
+      setStreetAddress(provider.address?.streetAddress || '');
+      setCity(provider.address?.city || '');
+      setState(provider.address?.state || '');
+      setZipcode(provider.address?.zipcode || '');
+      setEditModalVisible(true);
+    }
+  };
+
+  const handleSaveProviderInfo = async () => {
+    // Validation
+    if (phoneNumber && !/^\d{10}$/.test(phoneNumber)) {
+      Alert.alert('Validation Error', 'Phone number must be exactly 10 digits.');
+      return;
+    }
+
+    if (zipcode && !/^\d{5}$/.test(zipcode)) {
+      Alert.alert('Validation Error', 'Zipcode must be exactly 5 digits.');
+      return;
+    }
+
+    if (streetAddress || city || state || zipcode) {
+      if (!streetAddress || !city || !state || !zipcode) {
+        Alert.alert('Validation Error', 'All address fields are required if providing an address.');
+        return;
+      }
+    }
+
+    setSaving(true);
+    try {
+      if (!token) {
+        Alert.alert('Error', 'Authentication token missing.');
+        setSaving(false);
+        return;
+      }
+
+      const updateData: any = {};
+      
+      if (phoneNumber) {
+        updateData.phoneNumber = phoneNumber;
+      }
+
+      if (streetAddress && city && state && zipcode) {
+        updateData.address = {
+          streetAddress,
+          city,
+          state,
+          zipcode,
+        };
+      }
+
+      const response = await fetch(`${API_URL}/api/auth/me`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updateData),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        Alert.alert('Error', data.message || 'Failed to update provider information.');
+      } else {
+        Alert.alert('Success', 'Provider information updated successfully.');
+        setEditModalVisible(false);
+        fetchProvider(); // Refresh provider data
+      }
+    } catch (err) {
+      console.error('Error updating provider:', err);
+      Alert.alert('Error', 'Could not connect to server.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   if (loading) {
     return (
       <View className="flex-1 items-center justify-center bg-white dark:bg-gray-900">
@@ -257,46 +360,537 @@ export default function ProviderHome() {
         {/* Provider Info Card */}
         {provider && (
           <View className="bg-white dark:bg-gray-800 rounded-3xl p-6 mb-6 shadow-lg border border-gray-100 dark:border-gray-700">
-            <View className="flex-row items-center mb-4">
-              <View className="bg-blue-100 dark:bg-blue-900/30 rounded-xl p-3 mr-3">
-                <Ionicons name="person-circle" size={28} color="#2563eb" />
+            <View className="flex-row items-center justify-between mb-4">
+              <View className="flex-row items-center">
+                <View className="bg-blue-100 dark:bg-blue-900/30 rounded-xl p-3 mr-3">
+                  <Ionicons name="person-circle" size={28} color="#2563eb" />
+                </View>
+                <Text className="text-xl font-bold text-gray-900 dark:text-white">
+                  Provider Information
+                </Text>
               </View>
-              <Text className="text-xl font-bold text-gray-900 dark:text-white">
-                Provider Information
-              </Text>
+              <TouchableOpacity
+                onPress={handleOpenEditModal}
+                className="bg-blue-500 px-4 py-2 rounded-xl flex-row items-center"
+                activeOpacity={0.7}
+              >
+                <Ionicons name="create-outline" size={18} color="#fff" />
+                <Text className="text-white font-semibold ml-2">Edit</Text>
+              </TouchableOpacity>
             </View>
-            <View className="flex-row items-center justify-between flex-wrap">
+            <View className="space-y-3">
               <View className="flex-row items-center">
                 <Ionicons name="person-outline" size={18} color="#6b7280" />
                 <Text className="text-gray-700 dark:text-gray-300 ml-2 text-base font-semibold">
                   {provider.firstName} {provider.lastName}
                 </Text>
               </View>
-              <View className="flex-row items-center flex-wrap">
-                <View className="flex-row items-center mr-4">
-                  <Ionicons name="mail-outline" size={18} color="#6b7280" />
+              <View className="flex-row items-center">
+                <Ionicons name="mail-outline" size={18} color="#6b7280" />
+                <Text className="text-gray-700 dark:text-gray-300 ml-2">
+                  {provider.email}
+                </Text>
+              </View>
+              {provider.phoneNumber && (
+                <View className="flex-row items-center">
+                  <Ionicons name="call-outline" size={18} color="#6b7280" />
                   <Text className="text-gray-700 dark:text-gray-300 ml-2">
-                    {provider.email}
+                    {provider.phoneNumber}
                   </Text>
                 </View>
-                {provider.phoneNumber && (
-                  <View className="flex-row items-center mr-4">
-                    <Ionicons name="call-outline" size={18} color="#6b7280" />
-                    <Text className="text-gray-700 dark:text-gray-300 ml-2">
-                      {provider.phoneNumber}
+              )}
+              {provider.address && (
+                <View className="flex-row items-start">
+                  <Ionicons name="location-outline" size={18} color="#6b7280" style={{ marginTop: 2 }} />
+                  <View className="ml-2 flex-1">
+                    <Text className="text-gray-700 dark:text-gray-300">
+                      {provider.address.streetAddress}
+                    </Text>
+                    <Text className="text-gray-700 dark:text-gray-300">
+                      {provider.address.city}, {provider.address.state} {provider.address.zipcode}
                     </Text>
                   </View>
-                )}
-                <View className="flex-row items-center">
-                  <Ionicons name="shield-checkmark-outline" size={18} color="#6b7280" />
-                  <Text className="text-gray-700 dark:text-gray-300 ml-2 capitalize">
-                    {provider.role}
-                  </Text>
                 </View>
-              </View>
+              )}
             </View>
           </View>
         )}
+
+        {/* Edit Provider Info Modal */}
+        <Modal
+          visible={editModalVisible}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => setEditModalVisible(false)}
+        >
+          {Platform.OS === 'web' ? (
+            <View className="flex-1 justify-center items-center bg-black/50">
+              <Pressable 
+                style={{ 
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0
+                }}
+                onPress={() => setEditModalVisible(false)}
+              />
+              <View
+                className="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl"
+                style={{ 
+                  maxHeight: '90%',
+                  maxWidth: 600,
+                  width: '90%'
+                }}
+                onStartShouldSetResponder={() => true}
+              >
+                {/* Header */}
+                <View className="flex-row items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+                  <Text className="text-2xl font-bold text-gray-900 dark:text-white">
+                    Edit Provider Information
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => setEditModalVisible(false)}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <Ionicons name="close" size={28} color="#6b7280" />
+                  </TouchableOpacity>
+                </View>
+
+                <ScrollView
+                  style={{ flex: 1 }}
+                  contentContainerStyle={{ 
+                    paddingHorizontal: 16,
+                    paddingTop: 16,
+                    paddingBottom: 20,
+                    flexGrow: 1
+                  }}
+                  keyboardShouldPersistTaps="handled"
+                  showsVerticalScrollIndicator={true}
+                  nestedScrollEnabled={true}
+                  bounces={true}
+                >
+                  {/* Read-only Information */}
+                  <View className="mb-4">
+                    <Text className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                      Account Information
+                    </Text>
+
+                    <View className="mb-4">
+                      <Text className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Name
+                      </Text>
+                      <View className="bg-gray-100 dark:bg-gray-700 rounded-xl px-4 py-3 border border-gray-200 dark:border-gray-600">
+                        <Text className="text-gray-900 dark:text-white">
+                          {provider?.firstName} {provider?.lastName}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View className="mb-4">
+                      <Text className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Email
+                      </Text>
+                      <View className="bg-gray-100 dark:bg-gray-700 rounded-xl px-4 py-3 border border-gray-200 dark:border-gray-600">
+                        <Text className="text-gray-900 dark:text-white">
+                          {provider?.email}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View className="mb-4">
+                      <Text className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Role
+                      </Text>
+                      <View className="bg-gray-100 dark:bg-gray-700 rounded-xl px-4 py-3 border border-gray-200 dark:border-gray-600">
+                        <Text className="text-gray-900 dark:text-white capitalize">
+                          {provider?.role}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* Editable Information */}
+                  <View className="mb-4">
+                    <Text className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                      Contact Information
+                    </Text>
+
+                    <View className="mb-4">
+                      <Text className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Phone Number
+                      </Text>
+                      <TextInput
+                        value={phoneNumber}
+                        onChangeText={setPhoneNumber}
+                        keyboardType="phone-pad"
+                        maxLength={10}
+                        className="bg-gray-50 dark:bg-gray-700 rounded-xl px-4 py-3 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-600"
+                        placeholder="10 digits"
+                        placeholderTextColor="#9ca3af"
+                      />
+                    </View>
+                  </View>
+
+                  {/* Address Information */}
+                  <View className="mb-4">
+                    <Text className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                      Address
+                    </Text>
+
+                    <View className="mb-4">
+                      <Text className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Street Address
+                      </Text>
+                      <TextInput
+                        value={streetAddress}
+                        onChangeText={setStreetAddress}
+                        className="bg-gray-50 dark:bg-gray-700 rounded-xl px-4 py-3 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-600"
+                        placeholder="Street Address"
+                        placeholderTextColor="#9ca3af"
+                      />
+                    </View>
+
+                    <View className="mb-4">
+                      <Text className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        City
+                      </Text>
+                      <TextInput
+                        value={city}
+                        onChangeText={setCity}
+                        className="bg-gray-50 dark:bg-gray-700 rounded-xl px-4 py-3 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-600"
+                        placeholder="City"
+                        placeholderTextColor="#9ca3af"
+                      />
+                    </View>
+
+                    <View className="mb-4">
+                      <Text className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        State
+                      </Text>
+                      <View style={{ zIndex: 1000, elevation: 10 }}>
+                        <Dropdown
+                          data={US_STATES.map((s) => ({ label: s, value: s }))}
+                          labelField="label"
+                          valueField="value"
+                          placeholder="Select State"
+                          value={state}
+                          onChange={(item) => setState(item.value)}
+                          style={{
+                            backgroundColor: '#f9fafb',
+                            borderRadius: 12,
+                            paddingHorizontal: 16,
+                            paddingVertical: 12,
+                            borderWidth: 1,
+                            borderColor: '#e5e7eb',
+                            minHeight: 50,
+                          }}
+                          placeholderStyle={{
+                            color: '#9ca3af',
+                            fontSize: 16,
+                          }}
+                          selectedTextStyle={{
+                            color: '#111827',
+                            fontSize: 16,
+                          }}
+                          itemTextStyle={{
+                            color: '#111827',
+                            fontSize: 16,
+                          }}
+                          containerStyle={{
+                            borderRadius: 12,
+                            borderWidth: 1,
+                            borderColor: '#e5e7eb',
+                            maxHeight: 300,
+                          }}
+                          activeColor="#e0e7ff"
+                          search
+                          searchPlaceholder="Search states..."
+                        />
+                      </View>
+                    </View>
+
+                    <View className="mb-4">
+                      <Text className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Zipcode
+                      </Text>
+                      <TextInput
+                        value={zipcode}
+                        onChangeText={setZipcode}
+                        keyboardType="number-pad"
+                        maxLength={5}
+                        className="bg-gray-50 dark:bg-gray-700 rounded-xl px-4 py-3 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-600"
+                        placeholder="5 digits"
+                        placeholderTextColor="#9ca3af"
+                      />
+                    </View>
+                  </View>
+
+                  {/* Action Buttons */}
+                  <View className="gap-3 pb-4">
+                    <TouchableOpacity
+                      onPress={handleSaveProviderInfo}
+                      disabled={saving}
+                      className={`bg-blue-500 px-6 py-4 rounded-xl ${
+                        saving ? 'opacity-50' : ''
+                      }`}
+                      activeOpacity={0.7}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                      {saving ? (
+                        <ActivityIndicator color="#fff" />
+                      ) : (
+                        <Text className="text-white text-lg font-semibold text-center">
+                          Save Changes
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      onPress={() => setEditModalVisible(false)}
+                      className="bg-gray-500 px-6 py-4 rounded-xl"
+                      activeOpacity={0.7}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                      <Text className="text-white text-lg font-semibold text-center">
+                        Cancel
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </ScrollView>
+              </View>
+            </View>
+          ) : (
+            <View className="flex-1 justify-end bg-black/50">
+              <Pressable 
+                style={{ flex: 1 }}
+                onPress={() => setEditModalVisible(false)}
+              />
+              <KeyboardAvoidingView
+                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                style={{ justifyContent: 'flex-end' }}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+              >
+                <View
+                  className="bg-white dark:bg-gray-800 rounded-t-3xl"
+                  style={{ 
+                    height: '85%',
+                    maxHeight: '90%'
+                  }}
+                >
+                  {/* Header */}
+                  <View className="flex-row items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+                    <Text className="text-2xl font-bold text-gray-900 dark:text-white">
+                      Edit Provider Information
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => setEditModalVisible(false)}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                      <Ionicons name="close" size={28} color="#6b7280" />
+                    </TouchableOpacity>
+                  </View>
+
+                  <ScrollView
+                    style={{ flex: 1 }}
+                    contentContainerStyle={{ 
+                      paddingHorizontal: 16,
+                      paddingTop: 16,
+                      paddingBottom: 20,
+                      flexGrow: 1
+                    }}
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={true}
+                    nestedScrollEnabled={true}
+                    bounces={true}
+                  >
+                    {/* Read-only Information */}
+                    <View className="mb-4">
+                      <Text className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                        Account Information
+                      </Text>
+
+                      <View className="mb-4">
+                        <Text className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          Name
+                        </Text>
+                        <View className="bg-gray-100 dark:bg-gray-700 rounded-xl px-4 py-3 border border-gray-200 dark:border-gray-600">
+                          <Text className="text-gray-900 dark:text-white">
+                            {provider?.firstName} {provider?.lastName}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View className="mb-4">
+                        <Text className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          Email
+                        </Text>
+                        <View className="bg-gray-100 dark:bg-gray-700 rounded-xl px-4 py-3 border border-gray-200 dark:border-gray-600">
+                          <Text className="text-gray-900 dark:text-white">
+                            {provider?.email}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View className="mb-4">
+                        <Text className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          Role
+                        </Text>
+                        <View className="bg-gray-100 dark:bg-gray-700 rounded-xl px-4 py-3 border border-gray-200 dark:border-gray-600">
+                          <Text className="text-gray-900 dark:text-white capitalize">
+                            {provider?.role}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+
+                    {/* Editable Information */}
+                    <View className="mb-4">
+                      <Text className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                        Contact Information
+                      </Text>
+
+                      <View className="mb-4">
+                        <Text className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          Phone Number
+                        </Text>
+                        <TextInput
+                          value={phoneNumber}
+                          onChangeText={setPhoneNumber}
+                          keyboardType="phone-pad"
+                          maxLength={10}
+                          className="bg-gray-50 dark:bg-gray-700 rounded-xl px-4 py-3 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-600"
+                          placeholder="10 digits"
+                          placeholderTextColor="#9ca3af"
+                        />
+                      </View>
+                    </View>
+
+                    {/* Address Information */}
+                    <View className="mb-4">
+                      <Text className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                        Address
+                      </Text>
+
+                      <View className="mb-4">
+                        <Text className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          Street Address
+                        </Text>
+                        <TextInput
+                          value={streetAddress}
+                          onChangeText={setStreetAddress}
+                          className="bg-gray-50 dark:bg-gray-700 rounded-xl px-4 py-3 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-600"
+                          placeholder="Street Address"
+                          placeholderTextColor="#9ca3af"
+                        />
+                      </View>
+
+                      <View className="mb-4">
+                        <Text className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          City
+                        </Text>
+                        <TextInput
+                          value={city}
+                          onChangeText={setCity}
+                          className="bg-gray-50 dark:bg-gray-700 rounded-xl px-4 py-3 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-600"
+                          placeholder="City"
+                          placeholderTextColor="#9ca3af"
+                        />
+                      </View>
+
+                      <View className="mb-4">
+                        <Text className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          State
+                        </Text>
+                        <View style={{ zIndex: 999, elevation: 9 }}>
+                          <Dropdown
+                            data={US_STATES.map((s) => ({ label: s, value: s }))}
+                            labelField="label"
+                            valueField="value"
+                            placeholder="Select State"
+                            value={state}
+                            onChange={(item) => setState(item.value)}
+                            style={{
+                              backgroundColor: '#f9fafb',
+                              borderRadius: 12,
+                              paddingHorizontal: 16,
+                              paddingVertical: 12,
+                              borderWidth: 1,
+                              borderColor: '#e5e7eb',
+                              minHeight: 50,
+                            }}
+                            placeholderStyle={{
+                              color: '#9ca3af',
+                              fontSize: 16,
+                            }}
+                            selectedTextStyle={{
+                              color: '#111827',
+                              fontSize: 16,
+                            }}
+                            itemTextStyle={{
+                              color: '#111827',
+                              fontSize: 16,
+                            }}
+                            containerStyle={{
+                              borderRadius: 12,
+                              borderWidth: 1,
+                              borderColor: '#e5e7eb',
+                              maxHeight: 300,
+                            }}
+                            activeColor="#e0e7ff"
+                            search
+                            searchPlaceholder="Search states..."
+                          />
+                        </View>
+                      </View>
+
+                      <View className="mb-4">
+                        <Text className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          Zipcode
+                        </Text>
+                        <TextInput
+                          value={zipcode}
+                          onChangeText={setZipcode}
+                          keyboardType="number-pad"
+                          maxLength={5}
+                          className="bg-gray-50 dark:bg-gray-700 rounded-xl px-4 py-3 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-600"
+                          placeholder="5 digits"
+                          placeholderTextColor="#9ca3af"
+                        />
+                      </View>
+                    </View>
+
+                    {/* Action Buttons */}
+                    <View className="flex-row gap-3 mb-4">
+                      <TouchableOpacity
+                        onPress={handleSaveProviderInfo}
+                        disabled={saving}
+                        className={`flex-1 px-6 py-4 rounded-xl ${
+                          saving ? 'bg-blue-300' : 'bg-blue-600'
+                        }`}
+                        activeOpacity={0.7}
+                      >
+                        <Text className="text-white text-lg font-semibold text-center">
+                          {saving ? 'Saving...' : 'Save Changes'}
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => setEditModalVisible(false)}
+                        className="bg-gray-500 px-6 py-4 rounded-xl"
+                        activeOpacity={0.7}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      >
+                        <Text className="text-white text-lg font-semibold text-center">
+                          Cancel
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </ScrollView>
+                </View>
+              </KeyboardAvoidingView>
+            </View>
+          )}
+        </Modal>
 
         {/* Statistics */}
         {stats && (

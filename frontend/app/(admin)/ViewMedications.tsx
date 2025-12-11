@@ -45,6 +45,12 @@ interface Medication {
   startDate: string;
   endDate?: string;
   instructions?: string;
+  patient?: {
+    _id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
   prescribedBy?: {
     _id: string;
     firstName: string;
@@ -75,6 +81,8 @@ export default function ViewMedications() {
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
   const [startDateValue, setStartDateValue] = useState<Date>(new Date());
   const [endDateValue, setEndDateValue] = useState<Date | null>(null);
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const fetchMedications = async () => {
     try {
@@ -214,6 +222,8 @@ export default function ViewMedications() {
     setEditEndDate(medication.endDate?.slice(0, 10) || '');
     setEditInstructions(medication.instructions || '');
     setEditSuccessMessage(null);
+    setValidationErrors({});
+    setSaveError(null);
     setEditModalVisible(true);
   };
 
@@ -235,6 +245,9 @@ export default function ViewMedications() {
   const handleStartDateConfirm = () => {
     setShowStartDatePicker(false);
     setEditStartDate(startDateValue.toISOString().slice(0, 10));
+    if (validationErrors.startDate) {
+      setValidationErrors({ ...validationErrors, startDate: '' });
+    }
   };
 
   const handleEndDateChange = (event: any, selectedDate?: Date) => {
@@ -262,38 +275,83 @@ export default function ViewMedications() {
     } else {
       setEditEndDate('');
     }
+    if (validationErrors.endDate) {
+      setValidationErrors({ ...validationErrors, endDate: '' });
+    }
   };
 
   const handleSaveEdit = async () => {
     if (!selectedMedication) return;
 
-    if (!editName || !editDosage || !editFrequency || !editScheduleText || !editStartDate) {
-      if (Platform.OS === 'web') {
-        window.alert('Please fill all required fields.');
-      } else {
-        Alert.alert('Missing Required Fields', 'Please fill all required fields.');
+    // Clear previous errors
+    setValidationErrors({});
+    setSaveError(null);
+    setEditSuccessMessage(null);
+
+    const errors: Record<string, string> = {};
+
+    // Validate required fields (only name, dosage, and startDate)
+    if (!editName || editName.trim() === '') {
+      errors.name = 'Medication name is required';
+    }
+
+    if (!editDosage || editDosage.trim() === '') {
+      errors.dosage = 'Dosage is required';
+    }
+
+    if (!editStartDate || editStartDate.trim() === '') {
+      errors.startDate = 'Start date is required';
+    }
+
+    // Validate schedule format if provided (optional)
+    if (editScheduleText && editScheduleText.trim() !== '') {
+      const times = editScheduleText
+        .split(',')
+        .map((t) => t.trim())
+        .filter(Boolean);
+
+      if (times.length > 0) {
+        // Validate time format (HH:MM)
+        const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
+        const invalidTimes = times.filter(time => !timeRegex.test(time));
+        if (invalidTimes.length > 0) {
+          errors.schedule = `Invalid time format. Use HH:MM (e.g., 08:00, 20:30)`;
+        }
+      }
+    }
+
+    // Validate date range if end date is provided
+    if (editEndDate && editEndDate.trim() !== '') {
+      const start = new Date(editStartDate);
+      const end = new Date(editEndDate);
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+        errors.endDate = 'Invalid date format';
+      } else if (start > end) {
+        errors.endDate = 'End date cannot be earlier than start date';
+      }
+    }
+
+    // If there are validation errors, show them and return
+    if (Object.keys(errors).length > 0) {
+      setValidationErrors(errors);
+      if (Platform.OS !== 'web') {
+        Alert.alert('Validation Error', 'Please fix the errors in the form.');
       }
       return;
     }
 
-    const times = editScheduleText
-      .split(',')
-      .map((t) => t.trim())
-      .filter(Boolean);
-
-    if (!times.length) {
-      if (Platform.OS === 'web') {
-        window.alert('Please enter at least one time.');
-      } else {
-        Alert.alert('Invalid Schedule', 'Please enter at least one time.');
-      }
-      return;
+    // Build schedule payload only if schedule text is provided
+    let schedulePayload: Array<{ time: string; days: string[] }> = [];
+    if (editScheduleText && editScheduleText.trim() !== '') {
+      const times = editScheduleText
+        .split(',')
+        .map((t) => t.trim())
+        .filter(Boolean);
+      schedulePayload = times.map((time) => ({
+        time,
+        days: [],
+      }));
     }
-
-    const schedulePayload = times.map((time) => ({
-      time,
-      days: [],
-    }));
 
     setEditSaving(true);
 
@@ -309,44 +367,47 @@ export default function ViewMedications() {
         body: JSON.stringify({
           name: editName,
           dosage: editDosage,
-          frequency: editFrequency,
-          schedule: schedulePayload,
           startDate: editStartDate,
-          endDate: editEndDate,
-          instructions: editInstructions,
+          ...(editFrequency && { frequency: editFrequency }),
+          ...(schedulePayload.length > 0 && { schedule: schedulePayload }),
+          ...(editEndDate && editEndDate.trim() !== '' && { endDate: editEndDate }),
+          ...(editInstructions && editInstructions.trim() !== '' && { instructions: editInstructions }),
         }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        if (Platform.OS === 'web') {
-          setEditSuccessMessage(`❌ ${data.message || 'Failed to update medication'}`);
-          setTimeout(() => setEditSuccessMessage(null), 3000);
-        } else {
-          Alert.alert('Error', data.message || 'Failed to update medication');
+        const errorMessage = data.message || 'Failed to update medication';
+        setSaveError(errorMessage);
+        if (Platform.OS !== 'web') {
+          Alert.alert('Error', errorMessage);
         }
         return;
       }
 
+      // Success
       if (Platform.OS === 'web') {
         setEditSuccessMessage('✅ Medication updated successfully!');
         setTimeout(() => {
           setEditSuccessMessage(null);
+          setValidationErrors({});
+          setSaveError(null);
           setEditModalVisible(false);
           fetchMedications();
         }, 1500);
       } else {
         Alert.alert('Success', 'Medication updated successfully!');
+        setValidationErrors({});
+        setSaveError(null);
         setEditModalVisible(false);
         fetchMedications();
       }
     } catch (err) {
-      if (Platform.OS === 'web') {
-        setEditSuccessMessage('❌ Server error while saving.');
-        setTimeout(() => setEditSuccessMessage(null), 3000);
-      } else {
-        Alert.alert('Error', 'Server error while saving.');
+      const errorMessage = 'Could not connect to server. Please check your connection and try again.';
+      setSaveError(errorMessage);
+      if (Platform.OS !== 'web') {
+        Alert.alert('Error', errorMessage);
       }
     } finally {
       setEditSaving(false);
@@ -742,6 +803,24 @@ export default function ViewMedications() {
                   </Text>
                 </View>
 
+                {/* Patient Information */}
+                {med.patient && (
+                  <View className="mb-3 pb-2 border-b border-gray-200 dark:border-gray-700">
+                    <Text className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">
+                      PATIENT
+                    </Text>
+                    <View className="flex-row items-center">
+                      <Ionicons name="person-circle-outline" size={18} color="#059669" />
+                      <Text className="text-sm font-semibold text-gray-900 dark:text-white ml-2">
+                        {med.patient.firstName} {med.patient.lastName}
+                      </Text>
+                      <Text className="text-xs text-gray-500 dark:text-gray-400 ml-2">
+                        ({med.patient.email})
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
                 {/* Dosage, Schedule, Dates, Prescribed By - Same Line */}
                 <View className="flex-row items-center flex-wrap gap-2 border-b border-gray-200 dark:border-gray-700 pb-2">
                   <View className="flex-row items-center">
@@ -776,9 +855,9 @@ export default function ViewMedications() {
 
                   {med.prescribedBy && (
                     <View className="flex-row items-center">
-                      <Ionicons name="person-outline" size={16} color="#6b7280" />
+                      <Ionicons name="medical-outline" size={16} color="#6b7280" />
                       <Text className="text-sm text-gray-600 dark:text-gray-400 ml-1">
-                        By: {med.prescribedBy.firstName} {med.prescribedBy.lastName}
+                        Prescribed by: {med.prescribedBy.firstName} {med.prescribedBy.lastName}
                       </Text>
                     </View>
                   )}
@@ -865,6 +944,43 @@ export default function ViewMedications() {
                 </TouchableOpacity>
               </View>
 
+              {/* Error Banner */}
+              {saveError && (
+                <View className="mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
+                  <View className="flex-row items-start">
+                    <Ionicons name="alert-circle" size={20} color="#ef4444" style={{ marginRight: 8, marginTop: 2 }} />
+                    <Text className="text-red-700 dark:text-red-400 flex-1 text-sm font-medium">
+                      {saveError}
+                    </Text>
+                    <TouchableOpacity onPress={() => setSaveError(null)}>
+                      <Ionicons name="close" size={18} color="#ef4444" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+
+              {/* Validation Errors Banner */}
+              {Object.keys(validationErrors).length > 0 && (
+                <View className="mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
+                  <View className="flex-row items-start">
+                    <Ionicons name="alert-circle" size={20} color="#ef4444" style={{ marginRight: 8, marginTop: 2 }} />
+                    <View className="flex-1">
+                      <Text className="text-red-700 dark:text-red-400 text-sm font-semibold mb-1">
+                        Please fix the following errors:
+                      </Text>
+                      {Object.entries(validationErrors).map(([field, message]) => (
+                        <Text key={field} className="text-red-600 dark:text-red-400 text-sm">
+                          • {message}
+                        </Text>
+                      ))}
+                    </View>
+                    <TouchableOpacity onPress={() => setValidationErrors({})}>
+                      <Ionicons name="close" size={18} color="#ef4444" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+
               {editSuccessMessage && (
                 <View className={`mb-4 p-3 rounded-xl ${
                   editSuccessMessage.includes('✅') 
@@ -883,15 +999,33 @@ export default function ViewMedications() {
 
               <ScrollView className="flex-1" style={{ maxHeight: 600 }}>
                 <View className="bg-gray-50 dark:bg-gray-700 p-5 rounded-2xl">
-                  <Text className="text-gray-700 dark:text-gray-300 font-semibold mb-2">Name *</Text>
+                  <Text className="text-gray-700 dark:text-gray-300 font-semibold mb-2">
+                    Name <Text className="text-red-500">*</Text>
+                  </Text>
                   <TextInput
                     value={editName}
-                    onChangeText={setEditName}
-                    className="bg-white dark:bg-gray-600 rounded-xl px-4 py-3 text-gray-900 dark:text-white border-2 border-gray-200 dark:border-gray-500"
+                    onChangeText={(text) => {
+                      setEditName(text);
+                      if (validationErrors.name) {
+                        setValidationErrors({ ...validationErrors, name: '' });
+                      }
+                    }}
+                    className={`bg-white dark:bg-gray-600 rounded-xl px-4 py-3 text-gray-900 dark:text-white border-2 ${
+                      validationErrors.name 
+                        ? 'border-red-500 dark:border-red-500' 
+                        : 'border-gray-200 dark:border-gray-500'
+                    }`}
                     style={{ fontSize: 16 }}
                   />
+                  {validationErrors.name && (
+                    <Text className="text-red-500 text-xs mt-1 ml-1">
+                      {validationErrors.name}
+                    </Text>
+                  )}
 
-                  <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4 mb-2">Dosage *</Text>
+                  <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4 mb-2">
+                    Dosage <Text className="text-red-500">*</Text>
+                  </Text>
                   <TextInput
                     value={editDosage}
                     onChangeText={setEditDosage}
@@ -900,7 +1034,7 @@ export default function ViewMedications() {
                   />
 
                   <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4 mb-2">
-                    Frequency * (tap to select)
+                    Frequency (tap to select)
                   </Text>
                   <View className="flex-row flex-wrap mt-1">
                     {FREQUENCY_OPTIONS.map((opt) => (
@@ -928,7 +1062,7 @@ export default function ViewMedications() {
                   </View>
 
                   <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4 mb-2">
-                    Schedule * (comma-separated times)
+                    Schedule (comma-separated times)
                   </Text>
                   <TextInput
                     value={editScheduleText}
@@ -939,7 +1073,9 @@ export default function ViewMedications() {
                     placeholderTextColor="#9CA3AF"
                   />
 
-                  <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4 mb-2">Start Date *</Text>
+                  <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4 mb-2">
+                    Start Date <Text className="text-red-500">*</Text>
+                  </Text>
                   <input
                     type="date"
                     value={editStartDate}
@@ -948,18 +1084,28 @@ export default function ViewMedications() {
                       if (e.target.value) {
                         setStartDateValue(new Date(e.target.value));
                       }
+                      if (validationErrors.startDate) {
+                        setValidationErrors({ ...validationErrors, startDate: '' });
+                      }
                     }}
                     style={{
                       width: '100%',
                       padding: '12px',
                       borderRadius: '12px',
-                      border: '2px solid #e5e7eb',
+                      border: validationErrors.startDate 
+                        ? '2px solid #ef4444' 
+                        : '2px solid #e5e7eb',
                       fontSize: '16px',
                       backgroundColor: '#fff',
                       color: '#111827',
                     }}
                     className="dark:bg-gray-600 dark:border-gray-500 dark:text-white"
                   />
+                  {validationErrors.startDate && (
+                    <Text className="text-red-500 text-xs mt-1 ml-1">
+                      {validationErrors.startDate}
+                    </Text>
+                  )}
 
                   <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4 mb-2">End Date</Text>
                   <input
@@ -972,18 +1118,28 @@ export default function ViewMedications() {
                       } else {
                         setEndDateValue(null);
                       }
+                      if (validationErrors.endDate) {
+                        setValidationErrors({ ...validationErrors, endDate: '' });
+                      }
                     }}
                     style={{
                       width: '100%',
                       padding: '12px',
                       borderRadius: '12px',
-                      border: '2px solid #e5e7eb',
+                      border: validationErrors.endDate 
+                        ? '2px solid #ef4444' 
+                        : '2px solid #e5e7eb',
                       fontSize: '16px',
                       backgroundColor: '#fff',
                       color: '#111827',
                     }}
                     className="dark:bg-gray-600 dark:border-gray-500 dark:text-white"
                   />
+                  {validationErrors.endDate && (
+                    <Text className="text-red-500 text-xs mt-1 ml-1">
+                      {validationErrors.endDate}
+                    </Text>
+                  )}
 
                   <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4 mb-2">Instructions</Text>
                   <TextInput
@@ -1040,6 +1196,43 @@ export default function ViewMedications() {
                 </TouchableOpacity>
               </View>
 
+              {/* Error Banner */}
+              {saveError && (
+                <View className="mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
+                  <View className="flex-row items-start">
+                    <Ionicons name="alert-circle" size={20} color="#ef4444" style={{ marginRight: 8, marginTop: 2 }} />
+                    <Text className="text-red-700 dark:text-red-400 flex-1 text-sm font-medium">
+                      {saveError}
+                    </Text>
+                    <TouchableOpacity onPress={() => setSaveError(null)}>
+                      <Ionicons name="close" size={18} color="#ef4444" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+
+              {/* Validation Errors Banner */}
+              {Object.keys(validationErrors).length > 0 && (
+                <View className="mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
+                  <View className="flex-row items-start">
+                    <Ionicons name="alert-circle" size={20} color="#ef4444" style={{ marginRight: 8, marginTop: 2 }} />
+                    <View className="flex-1">
+                      <Text className="text-red-700 dark:text-red-400 text-sm font-semibold mb-1">
+                        Please fix the following errors:
+                      </Text>
+                      {Object.entries(validationErrors).map(([field, message]) => (
+                        <Text key={field} className="text-red-600 dark:text-red-400 text-sm">
+                          • {message}
+                        </Text>
+                      ))}
+                    </View>
+                    <TouchableOpacity onPress={() => setValidationErrors({})}>
+                      <Ionicons name="close" size={18} color="#ef4444" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+
               {editSuccessMessage && (
                 <View className={`mb-4 p-3 rounded-xl ${
                   editSuccessMessage.includes('✅') 
@@ -1058,24 +1251,56 @@ export default function ViewMedications() {
 
               <ScrollView className="flex-1">
                 <View className="bg-gray-50 dark:bg-gray-700 p-5 rounded-2xl">
-                  <Text className="text-gray-700 dark:text-gray-300 font-semibold mb-2">Name *</Text>
+                  <Text className="text-gray-700 dark:text-gray-300 font-semibold mb-2">
+                    Name <Text className="text-red-500">*</Text>
+                  </Text>
                   <TextInput
                     value={editName}
-                    onChangeText={setEditName}
-                    className="bg-white dark:bg-gray-600 rounded-xl px-4 py-3 text-gray-900 dark:text-white border-2 border-gray-200 dark:border-gray-500"
+                    onChangeText={(text) => {
+                      setEditName(text);
+                      if (validationErrors.name) {
+                        setValidationErrors({ ...validationErrors, name: '' });
+                      }
+                    }}
+                    className={`bg-white dark:bg-gray-600 rounded-xl px-4 py-3 text-gray-900 dark:text-white border-2 ${
+                      validationErrors.name 
+                        ? 'border-red-500 dark:border-red-500' 
+                        : 'border-gray-200 dark:border-gray-500'
+                    }`}
                     style={{ fontSize: 16 }}
                   />
-
-                  <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4 mb-2">Dosage *</Text>
-                  <TextInput
-                    value={editDosage}
-                    onChangeText={setEditDosage}
-                    className="bg-white dark:bg-gray-600 rounded-xl px-4 py-3 text-gray-900 dark:text-white border-2 border-gray-200 dark:border-gray-500"
-                    style={{ fontSize: 16 }}
-                  />
+                  {validationErrors.name && (
+                    <Text className="text-red-500 text-xs mt-1 ml-1">
+                      {validationErrors.name}
+                    </Text>
+                  )}
 
                   <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4 mb-2">
-                    Frequency * (tap to select)
+                    Dosage <Text className="text-red-500">*</Text>
+                  </Text>
+                  <TextInput
+                    value={editDosage}
+                    onChangeText={(text) => {
+                      setEditDosage(text);
+                      if (validationErrors.dosage) {
+                        setValidationErrors({ ...validationErrors, dosage: '' });
+                      }
+                    }}
+                    className={`bg-white dark:bg-gray-600 rounded-xl px-4 py-3 text-gray-900 dark:text-white border-2 ${
+                      validationErrors.dosage 
+                        ? 'border-red-500 dark:border-red-500' 
+                        : 'border-gray-200 dark:border-gray-500'
+                    }`}
+                    style={{ fontSize: 16 }}
+                  />
+                  {validationErrors.dosage && (
+                    <Text className="text-red-500 text-xs mt-1 ml-1">
+                      {validationErrors.dosage}
+                    </Text>
+                  )}
+
+                  <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4 mb-2">
+                    Frequency (tap to select)
                   </Text>
                   <View className="flex-row flex-wrap mt-1">
                     {FREQUENCY_OPTIONS.map((opt) => (
@@ -1103,7 +1328,7 @@ export default function ViewMedications() {
                   </View>
 
                   <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4 mb-2">
-                    Schedule * (comma-separated times)
+                    Schedule (comma-separated times)
                   </Text>
                   <TextInput
                     value={editScheduleText}
@@ -1114,16 +1339,27 @@ export default function ViewMedications() {
                     placeholderTextColor="#9CA3AF"
                   />
 
-                  <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4 mb-2">Start Date *</Text>
+                  <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4 mb-2">
+                    Start Date <Text className="text-red-500">*</Text>
+                  </Text>
                   <View>
                     <TouchableOpacity
                       onPress={() => setShowStartDatePicker(true)}
-                      className="bg-white dark:bg-gray-600 rounded-xl px-4 py-3 border-2 border-gray-200 dark:border-gray-500"
+                      className={`bg-white dark:bg-gray-600 rounded-xl px-4 py-3 border-2 ${
+                        validationErrors.startDate 
+                          ? 'border-red-500 dark:border-red-500' 
+                          : 'border-gray-200 dark:border-gray-500'
+                      }`}
                     >
                       <Text className="text-gray-900 dark:text-white" style={{ fontSize: 16 }}>
                         {editStartDate || 'Select start date'}
                       </Text>
                     </TouchableOpacity>
+                    {validationErrors.startDate && (
+                      <Text className="text-red-500 text-xs mt-1 ml-1">
+                        {validationErrors.startDate}
+                      </Text>
+                    )}
                     {showStartDatePicker && (
                       <View>
                         {Platform.OS === 'ios' && (
@@ -1158,12 +1394,21 @@ export default function ViewMedications() {
                   <View>
                     <TouchableOpacity
                       onPress={() => setShowEndDatePicker(true)}
-                      className="bg-white dark:bg-gray-600 rounded-xl px-4 py-3 border-2 border-gray-200 dark:border-gray-500"
+                      className={`bg-white dark:bg-gray-600 rounded-xl px-4 py-3 border-2 ${
+                        validationErrors.endDate 
+                          ? 'border-red-500 dark:border-red-500' 
+                          : 'border-gray-200 dark:border-gray-500'
+                      }`}
                     >
                       <Text className="text-gray-900 dark:text-white" style={{ fontSize: 16 }}>
                         {editEndDate || 'Select end date (optional)'}
                       </Text>
                     </TouchableOpacity>
+                    {validationErrors.endDate && (
+                      <Text className="text-red-500 text-xs mt-1 ml-1">
+                        {validationErrors.endDate}
+                      </Text>
+                    )}
                     {showEndDatePicker && (
                       <View>
                         {Platform.OS === 'ios' && (

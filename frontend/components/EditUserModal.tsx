@@ -65,6 +65,8 @@ export default function EditUserModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [saveError, setSaveError] = useState<string | null>(null);
   
   // Check if editing own account
   const isEditingSelf = currentUserId && userId && currentUserId === userId;
@@ -105,6 +107,8 @@ export default function EditUserModal({
       });
       setError(null);
       setShowDatePicker(false);
+      setValidationErrors({});
+      setSaveError(null);
     }
   }, [visible, userId]);
 
@@ -159,19 +163,51 @@ export default function EditUserModal({
   };
 
   const handleSave = async () => {
-    // Validation
-    if (!formData.firstName || !formData.lastName || !formData.email) {
-      Alert.alert('Validation Error', 'Please fill in all required fields.');
-      return;
+    // Clear previous errors
+    setValidationErrors({});
+    setSaveError(null);
+
+    const errors: Record<string, string> = {};
+
+    // Validate required fields
+    if (!formData.firstName || formData.firstName.trim() === '') {
+      errors.firstName = 'First name is required';
     }
 
-    if (formData.phoneNumber && !/^\d{10}$/.test(formData.phoneNumber)) {
-      Alert.alert('Validation Error', 'Phone number must be exactly 10 digits.');
-      return;
+    if (!formData.lastName || formData.lastName.trim() === '') {
+      errors.lastName = 'Last name is required';
     }
 
-    if (formData.zipcode && !/^\d{5}$/.test(formData.zipcode)) {
-      Alert.alert('Validation Error', 'Zipcode must be exactly 5 digits.');
+    if (!formData.email || formData.email.trim() === '') {
+      errors.email = 'Email is required';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      errors.email = 'Please enter a valid email address';
+    }
+
+    if (!formData.dateOfBirth || formData.dateOfBirth.trim() === '') {
+      errors.dateOfBirth = 'Date of birth is required';
+    }
+
+    // Validate optional fields if provided
+    if (formData.phoneNumber && formData.phoneNumber.trim() !== '') {
+      if (!/^\d{10}$/.test(formData.phoneNumber)) {
+        errors.phoneNumber = 'Phone number must be exactly 10 digits';
+      }
+    }
+
+    if (formData.zipcode && formData.zipcode.trim() !== '') {
+      if (!/^\d{5}$/.test(formData.zipcode)) {
+        errors.zipcode = 'Zipcode must be exactly 5 digits';
+      }
+    }
+
+    // If there are validation errors, show them and return
+    if (Object.keys(errors).length > 0) {
+      setValidationErrors(errors);
+      // Also show alert for mobile users
+      if (Platform.OS !== 'web') {
+        Alert.alert('Validation Error', 'Please fix the errors in the form.');
+      }
       return;
     }
 
@@ -197,9 +233,7 @@ export default function EditUserModal({
         updateData.isActive = formData.isActive;
       }
 
-      if (formData.dateOfBirth) {
-        updateData.dateOfBirth = formData.dateOfBirth;
-      }
+      updateData.dateOfBirth = formData.dateOfBirth;
 
       if (formData.gender) {
         updateData.gender = formData.gender;
@@ -231,15 +265,29 @@ export default function EditUserModal({
       const data = await response.json();
 
       if (!response.ok) {
-        Alert.alert('Error', data.message || 'Failed to update user.');
+        const errorMessage = data.message || 'Failed to update user.';
+        setSaveError(errorMessage);
+        if (Platform.OS !== 'web') {
+          Alert.alert('Error', errorMessage);
+        }
       } else {
-        Alert.alert('Success', 'User updated successfully.');
+        if (Platform.OS === 'web') {
+          // On web, show success message inline or use a toast-like notification
+          setSaveError(null);
+          setValidationErrors({});
+        } else {
+          Alert.alert('Success', 'User updated successfully.');
+        }
         onSave();
         onClose();
       }
     } catch (err) {
       console.error('Error updating user:', err);
-      Alert.alert('Error', 'Could not connect to server.');
+      const errorMessage = 'Could not connect to server. Please check your connection and try again.';
+      setSaveError(errorMessage);
+      if (Platform.OS !== 'web') {
+        Alert.alert('Error', errorMessage);
+      }
     } finally {
       setSaving(false);
     }
@@ -321,6 +369,43 @@ export default function EditUserModal({
               </View>
             ) : (
               <>
+                {/* Error Banner */}
+                {saveError && (
+                  <View className="mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
+                    <View className="flex-row items-start">
+                      <Ionicons name="alert-circle" size={20} color="#ef4444" style={{ marginRight: 8, marginTop: 2 }} />
+                      <Text className="text-red-700 dark:text-red-400 flex-1 text-sm font-medium">
+                        {saveError}
+                      </Text>
+                      <TouchableOpacity onPress={() => setSaveError(null)}>
+                        <Ionicons name="close" size={18} color="#ef4444" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
+
+                {/* Validation Errors Banner */}
+                {Object.keys(validationErrors).length > 0 && (
+                  <View className="mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
+                    <View className="flex-row items-start">
+                      <Ionicons name="alert-circle" size={20} color="#ef4444" style={{ marginRight: 8, marginTop: 2 }} />
+                      <View className="flex-1">
+                        <Text className="text-red-700 dark:text-red-400 text-sm font-semibold mb-1">
+                          Please fix the following errors:
+                        </Text>
+                        {Object.entries(validationErrors).map(([field, message]) => (
+                          <Text key={field} className="text-red-600 dark:text-red-400 text-sm">
+                            • {message}
+                          </Text>
+                        ))}
+                      </View>
+                      <TouchableOpacity onPress={() => setValidationErrors({})}>
+                        <Ionicons name="close" size={18} color="#ef4444" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
+
                 {/* Basic Information */}
                 <View className="mb-4">
                   <Text className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
@@ -329,37 +414,61 @@ export default function EditUserModal({
 
                   <View className="mb-4">
                     <Text className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      First Name *
+                      First Name <Text className="text-red-500">*</Text>
                     </Text>
                     <TextInput
                       value={formData.firstName}
-                      onChangeText={(text) =>
-                        setFormData({ ...formData, firstName: text })
-                      }
-                      className="bg-gray-50 dark:bg-gray-700 rounded-xl px-4 py-3 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-600"
+                      onChangeText={(text) => {
+                        setFormData({ ...formData, firstName: text });
+                        if (validationErrors.firstName) {
+                          setValidationErrors({ ...validationErrors, firstName: '' });
+                        }
+                      }}
+                      className={`bg-gray-50 dark:bg-gray-700 rounded-xl px-4 py-3 text-gray-900 dark:text-white border ${
+                        validationErrors.firstName 
+                          ? 'border-red-500 dark:border-red-500' 
+                          : 'border-gray-200 dark:border-gray-600'
+                      }`}
                       placeholder="First Name"
                       placeholderTextColor="#9ca3af"
                     />
+                    {validationErrors.firstName && (
+                      <Text className="text-red-500 text-xs mt-1 ml-1">
+                        {validationErrors.firstName}
+                      </Text>
+                    )}
                   </View>
 
                   <View className="mb-4">
                     <Text className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Last Name *
+                      Last Name <Text className="text-red-500">*</Text>
                     </Text>
                     <TextInput
                       value={formData.lastName}
-                      onChangeText={(text) =>
-                        setFormData({ ...formData, lastName: text })
-                      }
-                      className="bg-gray-50 dark:bg-gray-700 rounded-xl px-4 py-3 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-600"
+                      onChangeText={(text) => {
+                        setFormData({ ...formData, lastName: text });
+                        if (validationErrors.lastName) {
+                          setValidationErrors({ ...validationErrors, lastName: '' });
+                        }
+                      }}
+                      className={`bg-gray-50 dark:bg-gray-700 rounded-xl px-4 py-3 text-gray-900 dark:text-white border ${
+                        validationErrors.lastName 
+                          ? 'border-red-500 dark:border-red-500' 
+                          : 'border-gray-200 dark:border-gray-600'
+                      }`}
                       placeholder="Last Name"
                       placeholderTextColor="#9ca3af"
                     />
+                    {validationErrors.lastName && (
+                      <Text className="text-red-500 text-xs mt-1 ml-1">
+                        {validationErrors.lastName}
+                      </Text>
+                    )}
                   </View>
 
                   <View className="mb-4">
                     <Text className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Email *
+                      Email <Text className="text-red-500">*</Text>
                     </Text>
                     {isEditingSelf && (
                       <Text className="text-xs text-amber-600 dark:text-amber-400 mb-2">
@@ -368,21 +477,33 @@ export default function EditUserModal({
                     )}
                     <TextInput
                       value={formData.email}
-                      onChangeText={(text) => setFormData({ ...formData, email: text })}
+                      onChangeText={(text) => {
+                        setFormData({ ...formData, email: text });
+                        if (validationErrors.email) {
+                          setValidationErrors({ ...validationErrors, email: '' });
+                        }
+                      }}
                       keyboardType="email-address"
                       autoCapitalize="none"
                       editable={!isEditingSelf}
-                      className={`bg-gray-50 dark:bg-gray-700 rounded-xl px-4 py-3 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-600 ${
-                        isEditingSelf ? 'opacity-60' : ''
-                      }`}
+                      className={`bg-gray-50 dark:bg-gray-700 rounded-xl px-4 py-3 text-gray-900 dark:text-white border ${
+                        validationErrors.email 
+                          ? 'border-red-500 dark:border-red-500' 
+                          : 'border-gray-200 dark:border-gray-600'
+                      } ${isEditingSelf ? 'opacity-60' : ''}`}
                       placeholder="Email"
                       placeholderTextColor="#9ca3af"
                     />
+                    {validationErrors.email && (
+                      <Text className="text-red-500 text-xs mt-1 ml-1">
+                        {validationErrors.email}
+                      </Text>
+                    )}
                   </View>
 
                   <View className="mb-4">
                     <Text className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Role *
+                      Role <Text className="text-red-500">*</Text>
                     </Text>
                     <View className="flex-row gap-2">
                       {(['patient', 'provider', 'admin'] as const).map((role) => (
@@ -421,36 +542,60 @@ export default function EditUserModal({
                     </Text>
                     <TextInput
                       value={formData.phoneNumber}
-                      onChangeText={(text) =>
-                        setFormData({ ...formData, phoneNumber: text.replace(/\D/g, '') })
-                      }
+                      onChangeText={(text) => {
+                        setFormData({ ...formData, phoneNumber: text.replace(/\D/g, '') });
+                        if (validationErrors.phoneNumber) {
+                          setValidationErrors({ ...validationErrors, phoneNumber: '' });
+                        }
+                      }}
                       keyboardType="phone-pad"
                       maxLength={10}
-                      className="bg-gray-50 dark:bg-gray-700 rounded-xl px-4 py-3 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-600"
+                      className={`bg-gray-50 dark:bg-gray-700 rounded-xl px-4 py-3 text-gray-900 dark:text-white border ${
+                        validationErrors.phoneNumber 
+                          ? 'border-red-500 dark:border-red-500' 
+                          : 'border-gray-200 dark:border-gray-600'
+                      }`}
                       placeholder="10 digits"
                       placeholderTextColor="#9ca3af"
                     />
+                    {validationErrors.phoneNumber && (
+                      <Text className="text-red-500 text-xs mt-1 ml-1">
+                        {validationErrors.phoneNumber}
+                      </Text>
+                    )}
                   </View>
 
                   <View className="mb-4">
                     <Text className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Date of Birth
+                      Date of Birth <Text className="text-red-500">*</Text>
                     </Text>
                     <input
                       type="date"
                       value={formData.dateOfBirth}
-                      onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
+                      onChange={(e) => {
+                        setFormData({ ...formData, dateOfBirth: e.target.value });
+                        if (validationErrors.dateOfBirth) {
+                          setValidationErrors({ ...validationErrors, dateOfBirth: '' });
+                        }
+                      }}
                       max={new Date().toISOString().split('T')[0]}
                       style={{
                         width: '100%',
                         padding: '12px 16px',
                         borderRadius: '12px',
-                        border: '1px solid #e5e7eb',
+                        border: validationErrors.dateOfBirth 
+                          ? '1px solid #ef4444' 
+                          : '1px solid #e5e7eb',
                         backgroundColor: '#f9fafb',
                         fontSize: '16px',
                         color: '#111827',
                       }}
                     />
+                    {validationErrors.dateOfBirth && (
+                      <Text className="text-red-500 text-xs mt-1 ml-1">
+                        {validationErrors.dateOfBirth}
+                      </Text>
+                    )}
                   </View>
 
                   <View className="mb-4">
@@ -571,15 +716,27 @@ export default function EditUserModal({
                     </Text>
                     <TextInput
                       value={formData.zipcode}
-                      onChangeText={(text) =>
-                        setFormData({ ...formData, zipcode: text.replace(/\D/g, '') })
-                      }
+                      onChangeText={(text) => {
+                        setFormData({ ...formData, zipcode: text.replace(/\D/g, '') });
+                        if (validationErrors.zipcode) {
+                          setValidationErrors({ ...validationErrors, zipcode: '' });
+                        }
+                      }}
                       keyboardType="number-pad"
                       maxLength={5}
-                      className="bg-gray-50 dark:bg-gray-700 rounded-xl px-4 py-3 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-600"
+                      className={`bg-gray-50 dark:bg-gray-700 rounded-xl px-4 py-3 text-gray-900 dark:text-white border ${
+                        validationErrors.zipcode 
+                          ? 'border-red-500 dark:border-red-500' 
+                          : 'border-gray-200 dark:border-gray-600'
+                      }`}
                       placeholder="5 digits"
                       placeholderTextColor="#9ca3af"
                     />
+                    {validationErrors.zipcode && (
+                      <Text className="text-red-500 text-xs mt-1 ml-1">
+                        {validationErrors.zipcode}
+                      </Text>
+                    )}
                   </View>
                 </View>
 
@@ -731,6 +888,43 @@ export default function EditUserModal({
                     </View>
                   ) : (
                     <>
+                      {/* Error Banner */}
+                      {saveError && (
+                        <View className="mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
+                          <View className="flex-row items-start">
+                            <Ionicons name="alert-circle" size={20} color="#ef4444" style={{ marginRight: 8, marginTop: 2 }} />
+                            <Text className="text-red-700 dark:text-red-400 flex-1 text-sm font-medium">
+                              {saveError}
+                            </Text>
+                            <TouchableOpacity onPress={() => setSaveError(null)}>
+                              <Ionicons name="close" size={18} color="#ef4444" />
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      )}
+
+                      {/* Validation Errors Banner */}
+                      {Object.keys(validationErrors).length > 0 && (
+                        <View className="mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
+                          <View className="flex-row items-start">
+                            <Ionicons name="alert-circle" size={20} color="#ef4444" style={{ marginRight: 8, marginTop: 2 }} />
+                            <View className="flex-1">
+                              <Text className="text-red-700 dark:text-red-400 text-sm font-semibold mb-1">
+                                Please fix the following errors:
+                              </Text>
+                              {Object.entries(validationErrors).map(([field, message]) => (
+                                <Text key={field} className="text-red-600 dark:text-red-400 text-sm">
+                                  • {message}
+                                </Text>
+                              ))}
+                            </View>
+                            <TouchableOpacity onPress={() => setValidationErrors({})}>
+                              <Ionicons name="close" size={18} color="#ef4444" />
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      )}
+
                       {/* Basic Information */}
                       <View className="mb-4">
                         <Text className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
@@ -739,37 +933,61 @@ export default function EditUserModal({
 
                         <View className="mb-4">
                           <Text className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            First Name *
+                            First Name <Text className="text-red-500">*</Text>
                           </Text>
                           <TextInput
                             value={formData.firstName}
-                            onChangeText={(text) =>
-                              setFormData({ ...formData, firstName: text })
-                            }
-                            className="bg-gray-50 dark:bg-gray-700 rounded-xl px-4 py-3 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-600"
+                            onChangeText={(text) => {
+                              setFormData({ ...formData, firstName: text });
+                              if (validationErrors.firstName) {
+                                setValidationErrors({ ...validationErrors, firstName: '' });
+                              }
+                            }}
+                            className={`bg-gray-50 dark:bg-gray-700 rounded-xl px-4 py-3 text-gray-900 dark:text-white border ${
+                              validationErrors.firstName 
+                                ? 'border-red-500 dark:border-red-500' 
+                                : 'border-gray-200 dark:border-gray-600'
+                            }`}
                             placeholder="First Name"
                             placeholderTextColor="#9ca3af"
                           />
+                          {validationErrors.firstName && (
+                            <Text className="text-red-500 text-xs mt-1 ml-1">
+                              {validationErrors.firstName}
+                            </Text>
+                          )}
                         </View>
 
                         <View className="mb-4">
                           <Text className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            Last Name *
+                            Last Name <Text className="text-red-500">*</Text>
                           </Text>
                           <TextInput
                             value={formData.lastName}
-                            onChangeText={(text) =>
-                              setFormData({ ...formData, lastName: text })
-                            }
-                            className="bg-gray-50 dark:bg-gray-700 rounded-xl px-4 py-3 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-600"
+                            onChangeText={(text) => {
+                              setFormData({ ...formData, lastName: text });
+                              if (validationErrors.lastName) {
+                                setValidationErrors({ ...validationErrors, lastName: '' });
+                              }
+                            }}
+                            className={`bg-gray-50 dark:bg-gray-700 rounded-xl px-4 py-3 text-gray-900 dark:text-white border ${
+                              validationErrors.lastName 
+                                ? 'border-red-500 dark:border-red-500' 
+                                : 'border-gray-200 dark:border-gray-600'
+                            }`}
                             placeholder="Last Name"
                             placeholderTextColor="#9ca3af"
                           />
+                          {validationErrors.lastName && (
+                            <Text className="text-red-500 text-xs mt-1 ml-1">
+                              {validationErrors.lastName}
+                            </Text>
+                          )}
                         </View>
 
                         <View className="mb-4">
                           <Text className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            Email *
+                            Email <Text className="text-red-500">*</Text>
                           </Text>
                           <TextInput
                             value={formData.email}
@@ -790,19 +1008,33 @@ export default function EditUserModal({
                           </Text>
                           <TextInput
                             value={formData.phoneNumber}
-                            onChangeText={(text) =>
-                              setFormData({ ...formData, phoneNumber: text })
-                            }
-                            className="bg-gray-50 dark:bg-gray-700 rounded-xl px-4 py-3 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-600"
+                            onChangeText={(text) => {
+                              const cleaned = text.replace(/\D/g, '');
+                              setFormData({ ...formData, phoneNumber: cleaned });
+                              if (validationErrors.phoneNumber) {
+                                setValidationErrors({ ...validationErrors, phoneNumber: '' });
+                              }
+                            }}
+                            className={`bg-gray-50 dark:bg-gray-700 rounded-xl px-4 py-3 text-gray-900 dark:text-white border ${
+                              validationErrors.phoneNumber 
+                                ? 'border-red-500 dark:border-red-500' 
+                                : 'border-gray-200 dark:border-gray-600'
+                            }`}
                             placeholder="Phone Number"
                             placeholderTextColor="#9ca3af"
                             keyboardType="phone-pad"
+                            maxLength={10}
                           />
+                          {validationErrors.phoneNumber && (
+                            <Text className="text-red-500 text-xs mt-1 ml-1">
+                              {validationErrors.phoneNumber}
+                            </Text>
+                          )}
                         </View>
 
                         <View className="mb-4">
                           <Text className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            Date of Birth
+                            Date of Birth <Text className="text-red-500">*</Text>
                           </Text>
                           <TouchableOpacity
                             onPress={() => setShowDatePicker(true)}
@@ -845,6 +1077,9 @@ export default function EditUserModal({
                                           if (event.type === 'set' && selectedDate) {
                                             const dateString = selectedDate.toISOString().split('T')[0];
                                             setFormData({ ...formData, dateOfBirth: dateString });
+                                            if (validationErrors.dateOfBirth) {
+                                              setValidationErrors({ ...validationErrors, dateOfBirth: '' });
+                                            }
                                           }
                                           if (event.type === 'dismissed') {
                                             setShowDatePicker(false);

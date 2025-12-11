@@ -15,6 +15,8 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams, router, useFocusEffect } from 'expo-router';
 import { useCallback } from 'react';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { Ionicons } from '@expo/vector-icons';
 import ProviderNavbar from '@/components/ProviderNavbar';
 import Constants from 'expo-constants';
 
@@ -44,6 +46,12 @@ interface Medication {
   startDate: string;
   endDate?: string;
   instructions?: string;
+  patient?: {
+    _id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
   prescribedBy?: {
     firstName: string;
     lastName: string;
@@ -76,6 +84,8 @@ export default function ViewMedications() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [instructions, setInstructions] = useState("");
+  const [showStartPicker, setShowStartPicker] = useState(false);
+  const [showEndPicker, setShowEndPicker] = useState(false);
 
   const fetchMedications = async (showLoading = true) => {
     try {
@@ -175,24 +185,33 @@ export default function ViewMedications() {
     setStartDate("");
     setEndDate("");
     setInstructions("");
+    setShowStartPicker(false);
+    setShowEndPicker(false);
   };
 
   const saveMedicationChanges = async () => {
     if (!editingMedication) return;
     
-    if (!name || !dosage || !frequency || !scheduleText || !startDate) {
-      Alert.alert("Missing Required Fields", "Please fill all required fields.");
+    // Only name, dosage, and startDate are required
+    if (!name || !dosage || !startDate) {
+      Alert.alert("Missing Required Fields", "Please fill all required fields (Name, Dosage, Start Date).");
       return;
     }
 
-    const times = scheduleText
-      .split(",")
-      .map((t) => t.trim())
-      .filter(Boolean);
+    // Validate schedule format if provided (optional)
+    let schedulePayload: Array<{ time: string; days: string[] }> = [];
+    if (scheduleText && scheduleText.trim() !== '') {
+      const times = scheduleText
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean);
 
-    if (!times.length) {
-      Alert.alert("Invalid Schedule", "Please enter at least one time.");
-      return;
+      if (times.length > 0) {
+        schedulePayload = times.map((time) => ({
+          time,
+          days: [],
+        }));
+      }
     }
 
     // Validate date range
@@ -210,11 +229,6 @@ export default function ViewMedications() {
         return;
       }
     }
-
-    const schedulePayload = times.map((time) => ({
-      time,
-      days: [],
-    }));
 
     setSaving(true);
 
@@ -236,11 +250,11 @@ export default function ViewMedications() {
         body: JSON.stringify({
           name,
           dosage,
-          frequency,
-          schedule: schedulePayload,
           startDate,
-          endDate: endDate || undefined,
-          instructions: instructions || undefined,
+          ...(frequency && { frequency }),
+          ...(schedulePayload.length > 0 && { schedule: schedulePayload }),
+          ...(endDate && endDate.trim() !== '' && { endDate }),
+          ...(instructions && instructions.trim() !== '' && { instructions }),
         }),
       });
 
@@ -369,7 +383,7 @@ export default function ViewMedications() {
         </Text>
 
         <TouchableOpacity
-          onPress={fetchMedications}
+          onPress={() => fetchMedications()}
           className="bg-blue-500 px-6 py-3 rounded-xl"
         >
           <Text className="text-white text-lg font-semibold text-center">Retry</Text>
@@ -396,6 +410,24 @@ export default function ViewMedications() {
             key={med._id}
             className="bg-gray-100 dark:bg-gray-800 p-4 mb-4 rounded-2xl shadow"
           >
+            {/* Patient Information */}
+            {med.patient && (
+              <View className="mb-3 pb-2 border-b border-gray-300 dark:border-gray-600">
+                <Text className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">
+                  PATIENT
+                </Text>
+                <View className="flex-row items-center">
+                  <Ionicons name="person-circle-outline" size={18} color="#3b82f6" />
+                  <Text className="text-sm font-semibold text-gray-900 dark:text-white ml-2">
+                    {med.patient.firstName} {med.patient.lastName}
+                  </Text>
+                  <Text className="text-xs text-gray-500 dark:text-gray-400 ml-2">
+                    ({med.patient.email})
+                  </Text>
+                </View>
+              </View>
+            )}
+
             <Text className="text-xl font-bold text-gray-900 dark:text-white">
               {med.name}
             </Text>
@@ -470,27 +502,26 @@ export default function ViewMedications() {
         transparent={true}
         onRequestClose={closeEditModal}
       >
-        <Pressable 
-          className="flex-1 justify-end bg-black/50"
-          onPress={closeEditModal}
-        >
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            style={{ flex: 1, justifyContent: 'flex-end' }}
-            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
-          >
-            <View 
-              className="bg-white dark:bg-gray-800 rounded-t-3xl"
+        {Platform.OS === 'web' ? (
+          <View className="flex-1 justify-center items-center bg-black/50">
+            <Pressable 
               style={{ 
-                height: Platform.OS === 'web' ? '90%' : '85%',
-                maxHeight: '90%',
-                ...(Platform.OS === 'web' && {
-                  maxWidth: '800px',
-                  width: '100%',
-                  alignSelf: 'center',
-                  marginHorizontal: 'auto'
-                })
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0
               }}
+              onPress={closeEditModal}
+            />
+            <View
+              className="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl"
+              style={{
+                maxHeight: '90%',
+                maxWidth: 800,
+                width: '90%'
+              }}
+              onStartShouldSetResponder={() => true}
             >
               <View className="flex-row justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700">
                 <Text className="text-2xl font-bold text-gray-800 dark:text-white">
@@ -536,7 +567,9 @@ export default function ViewMedications() {
                     placeholderTextColor="#aaa"
                   />
 
-                  <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4">Dosage *</Text>
+                  <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4">
+                    Dosage <Text className="text-red-500">*</Text>
+                  </Text>
                   <TextInput
                     value={dosage}
                     onChangeText={setDosage}
@@ -546,7 +579,7 @@ export default function ViewMedications() {
                   />
 
                   <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4">
-                    Frequency * (tap to select)
+                    Frequency (tap to select)
                   </Text>
                   <View className="flex-row flex-wrap mt-1">
                     {FREQUENCY_OPTIONS.map((opt) => (
@@ -575,7 +608,7 @@ export default function ViewMedications() {
                   </View>
 
                   <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4">
-                    Schedule * (comma-separated times)
+                    Schedule (comma-separated times)
                   </Text>
                   <TextInput
                     value={scheduleText}
@@ -585,7 +618,9 @@ export default function ViewMedications() {
                     placeholderTextColor="#aaa"
                   />
 
-                  <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4">Start Date *</Text>
+                  <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4">
+                    Start Date <Text className="text-red-500">*</Text>
+                  </Text>
                   <TextInput
                     value={startDate}
                     onChangeText={setStartDate}
@@ -644,8 +679,250 @@ export default function ViewMedications() {
                 </ScrollView>
               )}
             </View>
-          </KeyboardAvoidingView>
-        </Pressable>
+          </View>
+        ) : (
+          <Pressable 
+            className="flex-1 justify-end bg-black/50"
+            onPress={closeEditModal}
+          >
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+              style={{ flex: 1, justifyContent: 'flex-end' }}
+              keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+            >
+              <View 
+                className="bg-white dark:bg-gray-800 rounded-t-3xl"
+                style={{ 
+                  height: '85%',
+                  maxHeight: '90%',
+                }}
+                onStartShouldSetResponder={() => true}
+              >
+                <View className="flex-row justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700">
+                  <Text className="text-2xl font-bold text-gray-800 dark:text-white">
+                    Edit Medication
+                  </Text>
+                  <TouchableOpacity
+                    onPress={closeEditModal}
+                    className="bg-gray-200 dark:bg-gray-700 px-4 py-2 rounded-xl"
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <Text className="text-gray-800 dark:text-white font-semibold">
+                      Close
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {loadingMedication ? (
+                  <View className="p-8 items-center" style={{ minHeight: 200 }}>
+                    <ActivityIndicator size="large" color="#2563eb" />
+                    <Text className="mt-3 text-gray-600 dark:text-gray-300">
+                      Loading Medication...
+                    </Text>
+                  </View>
+                ) : (
+                  <ScrollView
+                    style={{ flex: 1 }}
+                    contentContainerStyle={{ 
+                      padding: 16, 
+                      paddingBottom: 40
+                    }}
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={true}
+                    nestedScrollEnabled={true}
+                    bounces={true}
+                  >
+                  <View className="bg-gray-100 dark:bg-gray-800 p-5 rounded-2xl shadow">
+                    <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-2">Name *</Text>
+                    <TextInput
+                      value={name}
+                      onChangeText={setName}
+                      className="bg-white dark:bg-gray-700 rounded-xl mt-1 px-4 py-3 text-gray-900 dark:text-white"
+                      placeholder="Medication Name"
+                      placeholderTextColor="#aaa"
+                    />
+
+                    <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4">
+                    Dosage <Text className="text-red-500">*</Text>
+                  </Text>
+                    <TextInput
+                      value={dosage}
+                      onChangeText={setDosage}
+                      className="bg-white dark:bg-gray-700 rounded-xl mt-1 px-4 py-3 text-gray-900 dark:text-white"
+                      placeholder="e.g. 500mg"
+                      placeholderTextColor="#aaa"
+                    />
+
+                    <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4">
+                      Frequency (tap to select)
+                    </Text>
+                    <View className="flex-row flex-wrap mt-2">
+                      {FREQUENCY_OPTIONS.map((opt) => (
+                        <TouchableOpacity
+                          key={opt.value}
+                          onPress={() => setFrequency(opt.value)}
+                          className={`px-3 py-2 rounded-xl mr-2 mb-2 ${
+                            frequency === opt.value ? 'bg-blue-500' : 'bg-gray-200 dark:bg-gray-700'
+                          }`}
+                        >
+                          <Text className={frequency === opt.value ? 'text-white' : 'text-gray-800 dark:text-white'}>
+                            {opt.label}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+
+                    {/* Schedule */}
+                    <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4">Schedule (time per line)</Text>
+                    <TextInput
+                      value={scheduleText}
+                      onChangeText={setScheduleText}
+                      multiline
+                      numberOfLines={3}
+                      className="bg-white dark:bg-gray-700 rounded-xl mt-1 px-4 py-3 text-gray-900 dark:text-white"
+                      placeholder="e.g.\n08:00 AM\n08:00 PM"
+                      placeholderTextColor="#aaa"
+                    />
+
+                    {/* Instructions */}
+                    <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4">Instructions</Text>
+                    <TextInput
+                      value={instructions}
+                      onChangeText={setInstructions}
+                      multiline
+                      numberOfLines={3}
+                      className="bg-white dark:bg-gray-700 rounded-xl mt-1 px-4 py-3 text-gray-900 dark:text-white"
+                      placeholder="Any special instructions"
+                      placeholderTextColor="#aaa"
+                    />
+
+                    {/* Start/End Dates */}
+                    <View className="mt-4">
+                      <Text className="text-gray-700 dark:text-gray-300 font-semibold">Start Date *</Text>
+                      <TouchableOpacity
+                        onPress={() => setShowStartPicker(true)}
+                        className="bg-white dark:bg-gray-700 rounded-xl mt-1 px-4 py-3 border border-gray-200 dark:border-gray-600"
+                      >
+                        <Text className="text-gray-900 dark:text-white">
+                          {startDate ? new Date(startDate).toLocaleDateString() : 'Select start date'}
+                        </Text>
+                      </TouchableOpacity>
+                      {showStartPicker && (
+                        <View>
+                          {Platform.OS === 'ios' && (
+                            <View className="flex-row justify-end gap-2 mt-2 mb-2">
+                              <TouchableOpacity
+                                onPress={() => setShowStartPicker(false)}
+                                className="px-4 py-2 rounded-lg bg-gray-200 dark:bg-gray-700"
+                              >
+                                <Text className="text-gray-700 dark:text-gray-300 font-semibold">Cancel</Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                onPress={() => {
+                                  setShowStartPicker(false);
+                                }}
+                                className="px-4 py-2 rounded-lg bg-blue-600"
+                              >
+                                <Text className="text-white font-semibold">Done</Text>
+                              </TouchableOpacity>
+                            </View>
+                          )}
+                          <DateTimePicker
+                            value={startDate ? new Date(startDate) : new Date()}
+                            mode="date"
+                            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                            onChange={(event, date) => {
+                              if (Platform.OS === 'android') {
+                                setShowStartPicker(false);
+                              }
+                              if (date) {
+                                setStartDate(date.toISOString().split('T')[0]);
+                              }
+                            }}
+                          />
+                        </View>
+                      )}
+                    </View>
+
+                    <View className="mt-4">
+                      <Text className="text-gray-700 dark:text-gray-300 font-semibold">End Date</Text>
+                      <TouchableOpacity
+                        onPress={() => setShowEndPicker(true)}
+                        className="bg-white dark:bg-gray-700 rounded-xl mt-1 px-4 py-3 border border-gray-200 dark:border-gray-600"
+                      >
+                        <Text className="text-gray-900 dark:text-white">
+                          {endDate ? new Date(endDate).toLocaleDateString() : 'Select end date (optional)'}
+                        </Text>
+                      </TouchableOpacity>
+                      {showEndPicker && (
+                        <View>
+                          {Platform.OS === 'ios' && (
+                            <View className="flex-row justify-end gap-2 mt-2 mb-2">
+                              <TouchableOpacity
+                                onPress={() => setShowEndPicker(false)}
+                                className="px-4 py-2 rounded-lg bg-gray-200 dark:bg-gray-700"
+                              >
+                                <Text className="text-gray-700 dark:text-gray-300 font-semibold">Cancel</Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                onPress={() => {
+                                  setShowEndPicker(false);
+                                }}
+                                className="px-4 py-2 rounded-lg bg-blue-600"
+                              >
+                                <Text className="text-white font-semibold">Done</Text>
+                              </TouchableOpacity>
+                            </View>
+                          )}
+                          <DateTimePicker
+                            value={endDate ? new Date(endDate) : new Date()}
+                            mode="date"
+                            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                            onChange={(event, date) => {
+                              if (Platform.OS === 'android') {
+                                setShowEndPicker(false);
+                              }
+                              if (date) {
+                                setEndDate(date.toISOString().split('T')[0]);
+                              }
+                            }}
+                          />
+                        </View>
+                      )}
+                    </View>
+                  </View>
+
+                  {/* Action Buttons */}
+                  <View className="flex-row gap-3 mt-4">
+                    <TouchableOpacity
+                      onPress={saveMedicationChanges}
+                      disabled={saving || !name || !dosage || !startDate}
+                      className={`flex-1 px-6 py-4 rounded-xl ${
+                        saving ? 'bg-blue-300' : 'bg-blue-600'
+                      }`}
+                      activeOpacity={0.7}
+                    >
+                      <Text className="text-white text-lg font-semibold text-center">
+                        {saving ? 'Saving...' : 'Save Changes'}
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={closeEditModal}
+                      className="bg-gray-500 px-6 py-4 rounded-xl"
+                      activeOpacity={0.7}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                      <Text className="text-white text-lg font-semibold text-center">
+                        Cancel
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </ScrollView>
+              )}
+            </View>
+            </KeyboardAvoidingView>
+          </Pressable>
+        )}
       </Modal>
 
       {/* DELETE CONFIRMATION MODAL (for web) */}
@@ -661,12 +938,10 @@ export default function ViewMedications() {
         <View className="flex-1 justify-center items-center bg-black/60">
           <View 
             className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-2xl mx-4 w-full"
-            style={{
-              ...(Platform.OS === 'web' && {
-                maxWidth: '500px',
-                width: '100%'
-              })
-            }}
+            style={Platform.OS === 'web' ? {
+              maxWidth: 500,
+              width: '100%'
+            } : undefined}
           >
             <View className="flex-row items-center mb-4">
               <View className="bg-red-100 dark:bg-red-900/30 rounded-xl p-2 mr-3">
