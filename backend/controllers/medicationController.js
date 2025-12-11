@@ -127,14 +127,37 @@ exports.updateMedication = async (req, res) => {
             return res.status(403).json({ message: 'You are not authorized to update this medication' });
         }
         
-        // Only name, dosage, and startDate are required for updates
-        const { name, dosage, startDate } = req.body;
-        if (!name || !dosage || !startDate) {
-            return res.status(400).json({ message: 'Name, dosage, and start date are required fields' });
+        // Allow partial updates, but require at least one field to change.
+        const allowedFields = new Set([
+            'name',
+            'dosage',
+            'frequency',
+            'schedule',
+            'startDate',
+            'endDate',
+            'instructions',
+            'prescribedBy',
+            'reminderEnabled',
+        ]);
+        const updates = Object.fromEntries(
+            Object.entries(req.body || {}).filter(([key, value]) => allowedFields.has(key) && value !== undefined)
+        );
+        if (Object.keys(updates).length === 0) {
+            return res.status(400).json({ message: 'At least one valid field is required to update' });
         }
-        
-        // Update medication (frequency and schedule are optional)
-        medication = await Medication.findByIdAndUpdate(req.params.id, req.body, {new: true, runValidators: false});
+
+        // If prescribedBy is being updated, ensure it's a valid provider.
+        if (updates.prescribedBy) {
+            if (!mongoose.Types.ObjectId.isValid(updates.prescribedBy)) {
+                return res.status(400).json({ message: 'Invalid prescribedBy ID' });
+            }
+            const prescriber = await User.findById(updates.prescribedBy);
+            if (!prescriber || prescriber.role !== 'provider') {
+                return res.status(400).json({ message: 'prescribedBy must be a valid provider' });
+            }
+        }
+
+        medication = await Medication.findByIdAndUpdate(medication_id, updates, {new: true, runValidators: true});
         res.status(200).json(medication);
     } catch (error){
         console.error(error);

@@ -12,15 +12,32 @@ jest.mock('expo-constants', () => ({
 jest.mock('@react-native-async-storage/async-storage', () => ({
   getItem: jest.fn(() => Promise.resolve('fake-token')),
 }));
-jest.mock('../utils/notifications', () => ({
-  registerForPushNotificationsAsync: jest.fn(),
+jest.mock('nativewind', () => ({
+  useColorScheme: () => ({ colorScheme: 'light' }),
 }));
+jest.mock('react-native-calendars', () => ({
+  Calendar: () => null,
+}));
+
+const flushPromises = () => new Promise(setImmediate);
+
+beforeEach(() => {
+  global.fetch = jest.fn(() =>
+    Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve([]),
+    })
+  );
+});
 
 it('renders MedicationCalendar correctly', async () => {
   let tree;
 
   await act(async () => {
     tree = renderer.create(<MedicationCalendar />);
+    // Allow useEffects (token load + meds fetch) to settle.
+    await flushPromises();
+    await flushPromises();
   });
 
   expect(tree.toJSON()).toMatchSnapshot();

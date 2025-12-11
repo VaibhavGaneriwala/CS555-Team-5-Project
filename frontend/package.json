@@ -70,7 +70,10 @@
   },
   "jest": {
     "preset": "react-native",
-    "testTimeout": 15000
+    "testTimeout": 15000,
+    "moduleNameMapper": {
+      "^@/(.*)$": "<rootDir>/$1"
+    }
   },
   "private": true
 }
