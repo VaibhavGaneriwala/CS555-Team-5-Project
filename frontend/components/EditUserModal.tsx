@@ -69,16 +69,29 @@ export default function EditUserModal({
   const [saveError, setSaveError] = useState<string | null>(null);
   
   // Check if editing own account
-  const isEditingSelf = currentUserId && userId && currentUserId === userId;
+  const isEditingSelf: boolean = Boolean(currentUserId && userId && currentUserId === userId);
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    firstName: string;
+    lastName: string;
+    email: string;
+    role: 'admin' | 'patient' | 'provider';
+    phoneNumber: string;
+    dateOfBirth: string;
+    gender: 'male' | 'female' | 'other';
+    streetAddress: string;
+    city: string;
+    state: string;
+    zipcode: string;
+    isActive: boolean;
+  }>({
     firstName: '',
     lastName: '',
     email: '',
-    role: 'patient' as 'admin' | 'patient' | 'provider',
+    role: 'patient',
     phoneNumber: '',
     dateOfBirth: '',
-    gender: 'other' as 'male' | 'female' | 'other',
+    gender: 'other',
     streetAddress: '',
     city: '',
     state: 'Other',
@@ -151,7 +164,7 @@ export default function EditUserModal({
           city: user.address?.city || '',
           state: user.address?.state || 'Other',
           zipcode: user.address?.zipcode || '',
-          isActive: user.isActive !== undefined ? user.isActive : true,
+          isActive: user.isActive !== undefined ? Boolean(user.isActive) : true,
         });
       }
     } catch (err) {
@@ -230,7 +243,7 @@ export default function EditUserModal({
       // Prevent admins from changing their own email or account status
       if (!isEditingSelf) {
         updateData.email = formData.email;
-        updateData.isActive = formData.isActive;
+        updateData.isActive = Boolean(formData.isActive);
       }
 
       updateData.dateOfBirth = formData.dateOfBirth;
@@ -754,10 +767,10 @@ export default function EditUserModal({
                   <TouchableOpacity
                     onPress={() => {
                       if (!isEditingSelf) {
-                        setFormData({ ...formData, isActive: !formData.isActive });
+                        setFormData({ ...formData, isActive: Boolean(!formData.isActive) });
                       }
                     }}
-                    disabled={isEditingSelf}
+                    disabled={Boolean(isEditingSelf)}
                     className={`flex-row items-center justify-between p-4 rounded-xl ${
                       formData.isActive
                         ? 'bg-green-100 dark:bg-green-900'
@@ -991,15 +1004,28 @@ export default function EditUserModal({
                           </Text>
                           <TextInput
                             value={formData.email}
-                            onChangeText={(text) =>
-                              setFormData({ ...formData, email: text })
-                            }
-                            className="bg-gray-50 dark:bg-gray-700 rounded-xl px-4 py-3 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-600"
+                            onChangeText={(text) => {
+                              setFormData({ ...formData, email: text });
+                              if (validationErrors.email) {
+                                setValidationErrors({ ...validationErrors, email: '' });
+                              }
+                            }}
+                            className={`bg-gray-50 dark:bg-gray-700 rounded-xl px-4 py-3 text-gray-900 dark:text-white border ${
+                              validationErrors.email 
+                                ? 'border-red-500 dark:border-red-500' 
+                                : 'border-gray-200 dark:border-gray-600'
+                            }`}
                             placeholder="Email"
                             placeholderTextColor="#9ca3af"
                             keyboardType="email-address"
                             autoCapitalize="none"
+                            editable={!isEditingSelf}
                           />
+                          {validationErrors.email && (
+                            <Text className="text-red-500 text-xs mt-1 ml-1">
+                              {validationErrors.email}
+                            </Text>
+                          )}
                         </View>
 
                         <View className="mb-4">
@@ -1038,7 +1064,11 @@ export default function EditUserModal({
                           </Text>
                           <TouchableOpacity
                             onPress={() => setShowDatePicker(true)}
-                            className="bg-gray-50 dark:bg-gray-700 rounded-xl px-4 py-3 border border-gray-200 dark:border-gray-600 flex-row items-center justify-between"
+                            className={`bg-gray-50 dark:bg-gray-700 rounded-xl px-4 py-3 border ${
+                              validationErrors.dateOfBirth 
+                                ? 'border-red-500 dark:border-red-500' 
+                                : 'border-gray-200 dark:border-gray-600'
+                            } flex-row items-center justify-between`}
                           >
                             <Text className={`${formData.dateOfBirth ? 'text-gray-900 dark:text-white' : 'text-gray-400'}`}>
                               {formData.dateOfBirth 
@@ -1263,10 +1293,10 @@ export default function EditUserModal({
                           <TouchableOpacity
                             onPress={() => {
                               if (!isEditingSelf) {
-                                setFormData({ ...formData, isActive: !formData.isActive });
+                                setFormData({ ...formData, isActive: Boolean(!formData.isActive) });
                               }
                             }}
-                            disabled={isEditingSelf}
+                            disabled={Boolean(isEditingSelf)}
                             className={`w-14 h-8 rounded-full ${
                               formData.isActive ? 'bg-green-500' : 'bg-gray-300'
                             }`}

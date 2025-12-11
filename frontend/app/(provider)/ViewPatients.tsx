@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,12 +10,25 @@ import {
   Alert,
   ScrollView,
   Platform,
+  Pressable,
+  KeyboardAvoidingView,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import ProviderNavbar from '@/components/ProviderNavbar';
 import { API_URL } from '@/utils/apiConfig';
+import DateTimePicker from '@react-native-community/datetimepicker';
+
+const FREQUENCY_OPTIONS = [
+  { value: "once-daily", label: "Once daily" },
+  { value: "twice-daily", label: "Twice daily" },
+  { value: "three-times-daily", label: "3x daily" },
+  { value: "four-times-daily", label: "4x daily" },
+  { value: "weekly", label: "Weekly" },
+  { value: "as-needed", label: "As needed" },
+  { value: "custom", label: "Custom" },
+];
 
 interface Patient {
   _id: string;
@@ -64,6 +77,25 @@ export default function ViewPatients() {
   const [unassignModalVisible, setUnassignModalVisible] = useState(false);
   const [patientToUnassign, setPatientToUnassign] = useState<{ id: string; name: string } | null>(null);
   const [unassigning, setUnassigning] = useState(false);
+
+  // Create medication modal state
+  const [createMedModalVisible, setCreateMedModalVisible] = useState(false);
+  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  
+  // Create medication form state
+  const [createName, setCreateName] = useState("");
+  const [createDosage, setCreateDosage] = useState("");
+  const [createFrequency, setCreateFrequency] = useState<string>("once-daily");
+  const [createScheduleText, setCreateScheduleText] = useState("");
+  const [createStartDate, setCreateStartDate] = useState("");
+  const [createEndDate, setCreateEndDate] = useState("");
+  const [createInstructions, setCreateInstructions] = useState("");
+  const [showCreateStartPicker, setShowCreateStartPicker] = useState(false);
+  const [showCreateEndPicker, setShowCreateEndPicker] = useState(false);
+  const [createValidationErrors, setCreateValidationErrors] = useState<Record<string, string>>({});
+  const [createSaveError, setCreateSaveError] = useState<string | null>(null);
+  const createMedScrollViewRef = useRef<ScrollView>(null);
 
 
   /* -------------------------------------------------------
@@ -161,22 +193,30 @@ export default function ViewPatients() {
       const data = await response.json();
 
       if (!response.ok) {
-        Alert.alert('Error', data.message || 'Failed to assign patient');
+        if (Platform.OS !== 'web') {
+          Alert.alert('Error', data.message || 'Failed to assign patient');
+        } else {
+          // On web, show error in console or a toast-like message
+          console.error('Failed to assign patient:', data.message);
+        }
       } else {
-        Alert.alert('Success', data.message || 'Patient assigned successfully', [
-          {
-            text: 'OK',
-            onPress: () => {
-              setAssignModalVisible(false);
-              setSearchQuery('');
-              fetchPatients();
-              fetchAvailablePatients();
-            },
-          },
-        ]);
+        // Success - refresh lists and close modal
+        setAssignModalVisible(false);
+        setSearchQuery('');
+        fetchPatients();
+        fetchAvailablePatients();
+        
+        // Show success message only on mobile
+        if (Platform.OS !== 'web') {
+          Alert.alert('Success', data.message || 'Patient assigned successfully');
+        }
       }
     } catch (err) {
-      Alert.alert('Error', 'Unable to connect to server');
+      if (Platform.OS !== 'web') {
+        Alert.alert('Error', 'Unable to connect to server');
+      } else {
+        console.error('Error assigning patient:', err);
+      }
     } finally {
       setAssigning(false);
     }
@@ -318,6 +358,246 @@ export default function ViewPatients() {
       p.email.toLowerCase().includes(searchLower)
     );
   });
+
+  /* -------------------------------------------------------
+      OPEN CREATE MEDICATION MODAL
+  ------------------------------------------------------- */
+  const openCreateMedModal = (patientId: string) => {
+    setSelectedPatientId(patientId);
+    setCreateMedModalVisible(true);
+    setCreateName("");
+    setCreateDosage("");
+    setCreateFrequency("once-daily");
+    setCreateScheduleText("");
+    setCreateStartDate("");
+    setCreateEndDate("");
+    setCreateInstructions("");
+    setShowCreateStartPicker(false);
+    setShowCreateEndPicker(false);
+    setCreateValidationErrors({});
+    setCreateSaveError(null);
+  };
+
+  /* -------------------------------------------------------
+      CLOSE CREATE MEDICATION MODAL
+  ------------------------------------------------------- */
+  const closeCreateMedModal = () => {
+    setCreateMedModalVisible(false);
+    setSelectedPatientId(null);
+    setCreateName("");
+    setCreateDosage("");
+    setCreateFrequency("once-daily");
+    setCreateScheduleText("");
+    setCreateStartDate("");
+    setCreateEndDate("");
+    setCreateInstructions("");
+    setShowCreateStartPicker(false);
+    setShowCreateEndPicker(false);
+    setCreateValidationErrors({});
+    setCreateSaveError(null);
+  };
+
+  /* -------------------------------------------------------
+      HANDLE CREATE MEDICATION
+  ------------------------------------------------------- */
+  const handleCreateMedication = async () => {
+    console.log('handleCreateMedication called');
+    // Clear previous errors
+    setCreateValidationErrors({});
+    setCreateSaveError(null);
+
+    if (!selectedPatientId) {
+      const errorMsg = "Patient ID is missing.";
+      setCreateSaveError(errorMsg);
+      if (Platform.OS !== 'web') {
+        Alert.alert("Error", errorMsg);
+      }
+      return;
+    }
+
+    const errors: Record<string, string> = {};
+
+    // Validate required fields (only name, dosage, and startDate are required)
+    if (!createName || createName.trim() === '') {
+      errors.name = 'Medication name is required';
+    }
+
+    if (!createDosage || createDosage.trim() === '') {
+      errors.dosage = 'Dosage is required';
+    }
+
+    if (!createStartDate || createStartDate.trim() === '') {
+      errors.startDate = 'Start date is required';
+    }
+
+    // Validate schedule format if provided (optional for creation, but validate format if entered)
+    let schedulePayload: Array<{ time: string; days: string[] }> = [];
+    if (createScheduleText && createScheduleText.trim() !== '') {
+      const times = createScheduleText
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean);
+
+      if (times.length > 0) {
+        // Validate time format (HH:MM)
+        const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
+        const invalidTimes = times.filter(time => !timeRegex.test(time));
+        if (invalidTimes.length > 0) {
+          errors.schedule = `Invalid time format. Use HH:MM (e.g., 08:00, 20:30)`;
+        } else {
+          schedulePayload = times.map((time) => ({
+            time,
+            days: [],
+          }));
+        }
+      }
+    }
+    
+    // Backend requires schedule to be present (even if empty array)
+    // We'll always send it, but if user didn't provide schedule times,
+    // we need to create a default schedule based on frequency
+    // For now, we'll send an empty array and let backend handle it
+    // But backend validation might fail, so let's ensure we have at least one schedule entry
+    if (schedulePayload.length === 0 && !createScheduleText) {
+      // If no schedule provided, create a default based on frequency
+      // This ensures backend validation passes
+      schedulePayload = [{
+        time: "08:00", // Default morning time
+        days: [],
+      }];
+    }
+
+    // Validate date range if end date is provided
+    if (createEndDate && createEndDate.trim() !== '') {
+      const start = new Date(createStartDate);
+      const end = new Date(createEndDate);
+      
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+        errors.endDate = 'Invalid date format';
+      } else if (start > end) {
+        errors.endDate = 'End date cannot be earlier than start date';
+      }
+    }
+
+    // If there are validation errors, show them and return
+    if (Object.keys(errors).length > 0) {
+      setCreateValidationErrors(errors);
+      // Scroll to top to show errors
+      if (createMedScrollViewRef.current) {
+        createMedScrollViewRef.current.scrollTo({ y: 0, animated: true });
+      }
+      if (Platform.OS !== 'web') {
+        Alert.alert('Validation Error', 'Please fix the errors in the form.');
+      }
+      return;
+    }
+
+    setCreating(true);
+
+    try {
+      const token = await AsyncStorage.getItem("token");
+      
+      if (!token) {
+        const errorMsg = "Authentication token missing. Please log in again.";
+        setCreateSaveError(errorMsg);
+        if (Platform.OS !== 'web') {
+          Alert.alert("Error", errorMsg);
+        }
+        setCreating(false);
+        return;
+      }
+
+      // Ensure schedule is always provided (backend requires it)
+      // If no schedule provided, use a default empty schedule
+      const finalSchedule = schedulePayload.length > 0 ? schedulePayload : [];
+
+      const requestBody = {
+        patientId: selectedPatientId,
+        name: createName,
+        dosage: createDosage,
+        frequency: createFrequency,
+        schedule: finalSchedule,
+        startDate: createStartDate,
+        ...(createEndDate && createEndDate.trim() !== '' && { endDate: createEndDate }),
+        ...(createInstructions && createInstructions.trim() !== '' && { instructions: createInstructions }),
+      };
+
+      const res = await fetch(`${API_URL}/api/medications`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      let data;
+      try {
+        data = await res.json();
+      } catch (parseError) {
+        // If response is not JSON, use status text
+        const errorMsg = res.statusText || "Failed to create medication";
+        setCreateSaveError(errorMsg);
+        if (Platform.OS !== 'web') {
+          Alert.alert("Error", errorMsg);
+        }
+        setCreating(false);
+        return;
+      }
+
+      if (!res.ok) {
+        // Extract error message from response
+        let errorMsg = "Failed to create medication";
+        if (data) {
+          if (data.message) {
+            errorMsg = data.message;
+          } else if (data.error) {
+            errorMsg = data.error;
+          } else if (typeof data === 'string') {
+            errorMsg = data;
+          }
+        }
+        
+        setCreateSaveError(errorMsg);
+        setCreating(false);
+        
+        // Scroll to top to show error
+        if (createMedScrollViewRef.current) {
+          createMedScrollViewRef.current.scrollTo({ y: 0, animated: true });
+        }
+        
+        if (Platform.OS !== 'web') {
+          Alert.alert("Error", errorMsg);
+        }
+        return;
+      }
+
+      // Success
+      setCreating(false);
+      setCreateValidationErrors({});
+      setCreateSaveError(null);
+      
+      // Close modal and show success
+      closeCreateMedModal();
+      if (Platform.OS !== 'web') {
+        Alert.alert("Success", "Medication created successfully!");
+      }
+    } catch (err: any) {
+      console.error("Error creating medication:", err);
+      const errorMsg = err.message || "Could not connect to server. Please check your connection and try again.";
+      setCreateSaveError(errorMsg);
+      
+      // Scroll to top to show error
+      if (createMedScrollViewRef.current) {
+        createMedScrollViewRef.current.scrollTo({ y: 0, animated: true });
+      }
+      
+      if (Platform.OS !== 'web') {
+        Alert.alert("Error", errorMsg);
+      }
+      setCreating(false);
+    }
+  };
 
   /* -------------------------------------------------------
       MAIN UI
@@ -504,21 +784,7 @@ export default function ViewPatients() {
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                      onPress={() => {
-                        try {
-                          router.push({
-                            pathname: '/(provider)/CreateMedication',
-                            params: { patientId: item._id },
-                          });
-                        } catch (err) {
-                          console.error('Navigation error:', err);
-                          if (Platform.OS === 'web') {
-                            window.location.href = `/(provider)/CreateMedication?patientId=${item._id}`;
-                          } else {
-                            Alert.alert('Error', 'Failed to navigate. Please try again.');
-                          }
-                        }
-                      }}
+                      onPress={() => openCreateMedModal(item._id)}
                       activeOpacity={0.8}
                       className="bg-purple-500 px-4 py-2.5 rounded-xl flex-row items-center flex-1 min-w-[140px]"
                     >
@@ -564,15 +830,15 @@ export default function ViewPatients() {
         <View className="flex-1 justify-end bg-black/60">
           <View 
             className="bg-white dark:bg-gray-800 rounded-t-3xl p-6 shadow-2xl" 
-            style={{ 
-              height: Platform.OS === 'web' ? '90%' : '85%',
+            style={Platform.OS === 'web' ? {
+              height: '90%',
               maxHeight: '90%',
-              ...(Platform.OS === 'web' && {
-                maxWidth: '600px',
-                width: '100%',
-                alignSelf: 'center',
-                marginHorizontal: 'auto'
-              })
+              maxWidth: 600,
+              width: '100%',
+              alignSelf: 'center',
+            } : {
+              height: '85%',
+              maxHeight: '90%',
             }}
           >
             <View className="flex-row justify-between items-center mb-6 pb-4 border-b-2 border-gray-200 dark:border-gray-700">
@@ -658,12 +924,10 @@ export default function ViewPatients() {
         <View className="flex-1 justify-center items-center bg-black/60">
           <View 
             className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-2xl mx-4 w-full"
-            style={{
-              ...(Platform.OS === 'web' && {
-                maxWidth: '500px',
-                width: '100%'
-              })
-            }}
+            style={Platform.OS === 'web' ? {
+              maxWidth: 500,
+              width: '100%'
+            } : undefined}
           >
             <View className="flex-row items-center mb-4">
               <View className="bg-red-100 dark:bg-red-900/30 rounded-xl p-2 mr-3">
@@ -712,6 +976,674 @@ export default function ViewPatients() {
             </View>
           </View>
         </View>
+      </Modal>
+
+      {/* CREATE MEDICATION MODAL */}
+      <Modal
+        visible={createMedModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={closeCreateMedModal}
+      >
+        {Platform.OS === 'web' ? (
+          <View className="flex-1 justify-center items-center bg-black/50">
+            <Pressable 
+              style={{ 
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0
+              }}
+              onPress={closeCreateMedModal}
+            />
+            <View
+              className="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl"
+              style={{
+                maxHeight: '90%',
+                maxWidth: 800,
+                width: '90%'
+              }}
+              onStartShouldSetResponder={() => true}
+            >
+              <View className="flex-row justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700">
+                <Text className="text-2xl font-bold text-gray-800 dark:text-white">
+                  Create Medication
+                </Text>
+                <TouchableOpacity
+                  onPress={closeCreateMedModal}
+                  className="bg-gray-200 dark:bg-gray-700 px-4 py-2 rounded-xl"
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Text className="text-gray-800 dark:text-white font-semibold">
+                    Close
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView
+                ref={createMedScrollViewRef}
+                style={{ flex: 1 }}
+                contentContainerStyle={{ 
+                  padding: 16, 
+                  paddingBottom: 40
+                }}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={true}
+                nestedScrollEnabled={true}
+                bounces={true}
+              >
+                {/* Error Banner */}
+                {createSaveError && (
+                  <View className="mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
+                    <View className="flex-row items-start">
+                      <Ionicons name="alert-circle" size={20} color="#ef4444" style={{ marginRight: 8, marginTop: 2 }} />
+                      <Text className="text-red-700 dark:text-red-400 flex-1 text-sm font-medium">
+                        {createSaveError}
+                      </Text>
+                      <TouchableOpacity onPress={() => setCreateSaveError(null)}>
+                        <Ionicons name="close" size={18} color="#ef4444" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
+
+                {/* Validation Errors Banner */}
+                {Object.keys(createValidationErrors).length > 0 && (
+                  <View className="mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
+                    <View className="flex-row items-start">
+                      <Ionicons name="alert-circle" size={20} color="#ef4444" style={{ marginRight: 8, marginTop: 2 }} />
+                      <View className="flex-1">
+                        <Text className="text-red-700 dark:text-red-400 text-sm font-semibold mb-1">
+                          Please fix the following errors:
+                        </Text>
+                        {Object.entries(createValidationErrors).map(([field, message]) => (
+                          <Text key={field} className="text-red-600 dark:text-red-400 text-sm">
+                            • {message}
+                          </Text>
+                        ))}
+                      </View>
+                      <TouchableOpacity onPress={() => setCreateValidationErrors({})}>
+                        <Ionicons name="close" size={18} color="#ef4444" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
+
+                <View className="bg-gray-100 dark:bg-gray-800 p-5 rounded-2xl shadow">
+                  <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-2">
+                    Name <Text className="text-red-500">*</Text>
+                  </Text>
+                  <TextInput
+                    value={createName}
+                    onChangeText={(text) => {
+                      setCreateName(text);
+                      if (createValidationErrors.name) {
+                        setCreateValidationErrors({ ...createValidationErrors, name: '' });
+                      }
+                      if (createSaveError) setCreateSaveError(null);
+                    }}
+                    className={`bg-white dark:bg-gray-700 rounded-xl mt-1 px-4 py-3 text-gray-900 dark:text-white border ${
+                      createValidationErrors.name 
+                        ? 'border-red-500 dark:border-red-500' 
+                        : 'border-gray-200 dark:border-gray-600'
+                    }`}
+                    placeholder="Medication Name"
+                    placeholderTextColor="#aaa"
+                  />
+                  {createValidationErrors.name && (
+                    <Text className="text-red-500 text-xs mt-1 ml-1">
+                      {createValidationErrors.name}
+                    </Text>
+                  )}
+
+                  <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4">
+                    Dosage <Text className="text-red-500">*</Text>
+                  </Text>
+                  <TextInput
+                    value={createDosage}
+                    onChangeText={(text) => {
+                      setCreateDosage(text);
+                      if (createValidationErrors.dosage) {
+                        setCreateValidationErrors({ ...createValidationErrors, dosage: '' });
+                      }
+                      if (createSaveError) setCreateSaveError(null);
+                    }}
+                    className={`bg-white dark:bg-gray-700 rounded-xl mt-1 px-4 py-3 text-gray-900 dark:text-white border ${
+                      createValidationErrors.dosage 
+                        ? 'border-red-500 dark:border-red-500' 
+                        : 'border-gray-200 dark:border-gray-600'
+                    }`}
+                    placeholder="e.g. 500mg"
+                    placeholderTextColor="#aaa"
+                  />
+                  {createValidationErrors.dosage && (
+                    <Text className="text-red-500 text-xs mt-1 ml-1">
+                      {createValidationErrors.dosage}
+                    </Text>
+                  )}
+
+                  <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4">
+                    Frequency (tap to select)
+                  </Text>
+                  <View className="flex-row flex-wrap mt-1">
+                    {FREQUENCY_OPTIONS.map((opt) => (
+                      <TouchableOpacity
+                        key={opt.value}
+                        onPress={() => setCreateFrequency(opt.value)}
+                        className={`px-4 py-3 mr-2 mb-2 rounded-full border ${
+                          createFrequency === opt.value
+                            ? "bg-blue-600 border-blue-700"
+                            : "bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
+                        }`}
+                        activeOpacity={0.7}
+                        hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
+                      >
+                        <Text
+                          className={`text-sm font-semibold ${
+                            createFrequency === opt.value
+                              ? "text-white"
+                              : "text-gray-800 dark:text-gray-200"
+                          }`}
+                        >
+                          {opt.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4">
+                    Schedule (comma-separated times)
+                  </Text>
+                  <TextInput
+                    value={createScheduleText}
+                    onChangeText={(text) => {
+                      setCreateScheduleText(text);
+                      if (createValidationErrors.schedule) {
+                        setCreateValidationErrors({ ...createValidationErrors, schedule: '' });
+                      }
+                      if (createSaveError) setCreateSaveError(null);
+                    }}
+                    className={`bg-white dark:bg-gray-700 rounded-xl mt-1 px-4 py-3 text-gray-900 dark:text-white border ${
+                      createValidationErrors.schedule 
+                        ? 'border-red-500 dark:border-red-500' 
+                        : 'border-gray-200 dark:border-gray-600'
+                    }`}
+                    placeholder="e.g. 08:00, 20:00"
+                    placeholderTextColor="#aaa"
+                  />
+                  {createValidationErrors.schedule && (
+                    <Text className="text-red-500 text-xs mt-1 ml-1">
+                      {createValidationErrors.schedule}
+                    </Text>
+                  )}
+
+                  <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4">
+                    Start Date <Text className="text-red-500">*</Text>
+                  </Text>
+                  <input
+                    type="date"
+                    value={createStartDate}
+                    onChange={(e) => {
+                      setCreateStartDate(e.target.value);
+                      if (createValidationErrors.startDate) {
+                        setCreateValidationErrors({ ...createValidationErrors, startDate: '' });
+                      }
+                      if (createSaveError) setCreateSaveError(null);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      borderRadius: '12px',
+                      border: createValidationErrors.startDate 
+                        ? '2px solid #ef4444' 
+                        : '2px solid #e5e7eb',
+                      fontSize: '16px',
+                      backgroundColor: '#fff',
+                      color: '#111827',
+                      marginTop: '8px',
+                    }}
+                    className="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                  />
+                  {createValidationErrors.startDate && (
+                    <Text className="text-red-500 text-xs mt-1 ml-1">
+                      {createValidationErrors.startDate}
+                    </Text>
+                  )}
+
+                  <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4">End Date</Text>
+                  <input
+                    type="date"
+                    value={createEndDate}
+                    onChange={(e) => {
+                      setCreateEndDate(e.target.value);
+                      if (createValidationErrors.endDate) {
+                        setCreateValidationErrors({ ...createValidationErrors, endDate: '' });
+                      }
+                      if (createSaveError) setCreateSaveError(null);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      borderRadius: '12px',
+                      border: createValidationErrors.endDate 
+                        ? '2px solid #ef4444' 
+                        : '2px solid #e5e7eb',
+                      fontSize: '16px',
+                      backgroundColor: '#fff',
+                      color: '#111827',
+                      marginTop: '8px',
+                    }}
+                    className="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                  />
+                  {createValidationErrors.endDate && (
+                    <Text className="text-red-500 text-xs mt-1 ml-1">
+                      {createValidationErrors.endDate}
+                    </Text>
+                  )}
+
+                  <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4">Instructions</Text>
+                  <TextInput
+                    value={createInstructions}
+                    onChangeText={setCreateInstructions}
+                    multiline
+                    className="bg-white dark:bg-gray-700 rounded-xl mt-1 px-4 py-3 h-24 text-gray-900 dark:text-white"
+                    placeholder="Additional instructions"
+                    placeholderTextColor="#aaa"
+                  />
+                </View>
+              </ScrollView>
+
+              {/* Action Button - Outside ScrollView for better touch handling */}
+              <View 
+                className="p-4 border-t border-gray-200 dark:border-gray-700"
+                onStartShouldSetResponder={() => true}
+              >
+                <TouchableOpacity
+                  onPress={() => {
+                    console.log('Create Medication button pressed (web)');
+                    handleCreateMedication();
+                  }}
+                  disabled={creating || !createName || !createDosage || !createStartDate}
+                  className={`px-6 py-4 rounded-xl ${
+                    creating || !createName || !createDosage || !createStartDate
+                      ? "bg-blue-300 opacity-50" 
+                      : "bg-blue-600"
+                  }`}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Text className="text-white text-lg font-semibold text-center">
+                    {creating ? "Creating..." : "Create Medication"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        ) : (
+          <Pressable 
+            className="flex-1 justify-end bg-black/50"
+            onPress={closeCreateMedModal}
+          >
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+              style={{ flex: 1, justifyContent: 'flex-end' }}
+              keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+            >
+              <View 
+                className="bg-white dark:bg-gray-800 rounded-t-3xl"
+                style={{ 
+                  height: '85%',
+                  maxHeight: '90%',
+                }}
+                onStartShouldSetResponder={() => true}
+                onStartShouldSetResponderCapture={() => false}
+                onMoveShouldSetResponder={() => true}
+              >
+                <View className="flex-row justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700">
+                  <Text className="text-2xl font-bold text-gray-800 dark:text-white">
+                    Create Medication
+                  </Text>
+                  <TouchableOpacity
+                    onPress={closeCreateMedModal}
+                    className="bg-gray-200 dark:bg-gray-700 px-4 py-2 rounded-xl"
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <Text className="text-gray-800 dark:text-white font-semibold">
+                      Close
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                <ScrollView
+                  ref={createMedScrollViewRef}
+                  style={{ flex: 1 }}
+                  contentContainerStyle={{ 
+                    padding: 16, 
+                    paddingBottom: 40
+                  }}
+                  keyboardShouldPersistTaps="handled"
+                  showsVerticalScrollIndicator={true}
+                  nestedScrollEnabled={true}
+                  bounces={true}
+                >
+                  {/* Error Banner */}
+                  {createSaveError && (
+                    <View className="mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
+                      <View className="flex-row items-start">
+                        <Ionicons name="alert-circle" size={20} color="#ef4444" style={{ marginRight: 8, marginTop: 2 }} />
+                        <Text className="text-red-700 dark:text-red-400 flex-1 text-sm font-medium">
+                          {createSaveError}
+                        </Text>
+                        <TouchableOpacity onPress={() => setCreateSaveError(null)}>
+                          <Ionicons name="close" size={18} color="#ef4444" />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  )}
+
+                  {/* Validation Errors Banner */}
+                  {Object.keys(createValidationErrors).length > 0 && (
+                    <View className="mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
+                      <View className="flex-row items-start">
+                        <Ionicons name="alert-circle" size={20} color="#ef4444" style={{ marginRight: 8, marginTop: 2 }} />
+                        <View className="flex-1">
+                          <Text className="text-red-700 dark:text-red-400 text-sm font-semibold mb-1">
+                            Please fix the following errors:
+                          </Text>
+                          {Object.entries(createValidationErrors).map(([field, message]) => (
+                            <Text key={field} className="text-red-600 dark:text-red-400 text-sm">
+                              • {message}
+                            </Text>
+                          ))}
+                        </View>
+                        <TouchableOpacity onPress={() => setCreateValidationErrors({})}>
+                          <Ionicons name="close" size={18} color="#ef4444" />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  )}
+
+                  <View className="bg-gray-100 dark:bg-gray-800 p-5 rounded-2xl shadow">
+                    <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-2">
+                      Name <Text className="text-red-500">*</Text>
+                    </Text>
+                    <TextInput
+                      value={createName}
+                      onChangeText={(text) => {
+                        setCreateName(text);
+                        if (createValidationErrors.name) {
+                          setCreateValidationErrors({ ...createValidationErrors, name: '' });
+                        }
+                        if (createSaveError) setCreateSaveError(null);
+                      }}
+                      className={`bg-white dark:bg-gray-700 rounded-xl mt-1 px-4 py-3 text-gray-900 dark:text-white border ${
+                        createValidationErrors.name 
+                          ? 'border-red-500 dark:border-red-500' 
+                          : 'border-gray-200 dark:border-gray-600'
+                      }`}
+                      placeholder="Medication Name"
+                      placeholderTextColor="#aaa"
+                    />
+                    {createValidationErrors.name && (
+                      <Text className="text-red-500 text-xs mt-1 ml-1">
+                        {createValidationErrors.name}
+                      </Text>
+                    )}
+
+                    <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4">
+                      Dosage <Text className="text-red-500">*</Text>
+                    </Text>
+                    <TextInput
+                      value={createDosage}
+                      onChangeText={(text) => {
+                        setCreateDosage(text);
+                        if (createValidationErrors.dosage) {
+                          setCreateValidationErrors({ ...createValidationErrors, dosage: '' });
+                        }
+                        if (createSaveError) setCreateSaveError(null);
+                      }}
+                      className={`bg-white dark:bg-gray-700 rounded-xl mt-1 px-4 py-3 text-gray-900 dark:text-white border ${
+                        createValidationErrors.dosage 
+                          ? 'border-red-500 dark:border-red-500' 
+                          : 'border-gray-200 dark:border-gray-600'
+                      }`}
+                      placeholder="e.g. 500mg"
+                      placeholderTextColor="#aaa"
+                    />
+                    {createValidationErrors.dosage && (
+                      <Text className="text-red-500 text-xs mt-1 ml-1">
+                        {createValidationErrors.dosage}
+                      </Text>
+                    )}
+
+                    <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4">
+                      Frequency (tap to select)
+                    </Text>
+                    <View className="flex-row flex-wrap mt-2">
+                      {FREQUENCY_OPTIONS.map((opt) => (
+                        <TouchableOpacity
+                          key={opt.value}
+                          onPress={() => setCreateFrequency(opt.value)}
+                          className={`px-3 py-2 rounded-xl mr-2 mb-2 ${
+                            createFrequency === opt.value ? 'bg-blue-500' : 'bg-gray-200 dark:bg-gray-700'
+                          }`}
+                        >
+                          <Text className={createFrequency === opt.value ? 'text-white' : 'text-gray-800 dark:text-white'}>
+                            {opt.label}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+
+                    {/* Schedule */}
+                    <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4">Schedule (time per line)</Text>
+                    <TextInput
+                      value={createScheduleText}
+                      onChangeText={(text) => {
+                        setCreateScheduleText(text);
+                        if (createValidationErrors.schedule) {
+                          setCreateValidationErrors({ ...createValidationErrors, schedule: '' });
+                        }
+                        if (createSaveError) setCreateSaveError(null);
+                      }}
+                      multiline
+                      numberOfLines={3}
+                      className={`bg-white dark:bg-gray-700 rounded-xl mt-1 px-4 py-3 text-gray-900 dark:text-white border ${
+                        createValidationErrors.schedule 
+                          ? 'border-red-500 dark:border-red-500' 
+                          : 'border-gray-200 dark:border-gray-600'
+                      }`}
+                      placeholder="e.g.\n08:00 AM\n08:00 PM"
+                      placeholderTextColor="#aaa"
+                    />
+                    {createValidationErrors.schedule && (
+                      <Text className="text-red-500 text-xs mt-1 ml-1">
+                        {createValidationErrors.schedule}
+                      </Text>
+                    )}
+
+                    {/* Instructions */}
+                    <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4">Instructions</Text>
+                    <TextInput
+                      value={createInstructions}
+                      onChangeText={setCreateInstructions}
+                      multiline
+                      numberOfLines={3}
+                      className="bg-white dark:bg-gray-700 rounded-xl mt-1 px-4 py-3 text-gray-900 dark:text-white"
+                      placeholder="Any special instructions"
+                      placeholderTextColor="#aaa"
+                    />
+
+                    {/* Start/End Dates */}
+                    <View className="mt-4">
+                      <Text className="text-gray-700 dark:text-gray-300 font-semibold">
+                        Start Date <Text className="text-red-500">*</Text>
+                      </Text>
+                      <TouchableOpacity
+                        onPress={() => setShowCreateStartPicker(true)}
+                        className={`bg-white dark:bg-gray-700 rounded-xl mt-1 px-4 py-3 border ${
+                          createValidationErrors.startDate 
+                            ? 'border-red-500 dark:border-red-500' 
+                            : 'border-gray-200 dark:border-gray-600'
+                        }`}
+                      >
+                        <Text className="text-gray-900 dark:text-white">
+                          {createStartDate ? new Date(createStartDate).toLocaleDateString() : 'Select start date'}
+                        </Text>
+                      </TouchableOpacity>
+                      {createValidationErrors.startDate && (
+                        <Text className="text-red-500 text-xs mt-1 ml-1">
+                          {createValidationErrors.startDate}
+                        </Text>
+                      )}
+                      {showCreateStartPicker && (
+                        <View>
+                          {Platform.OS === 'ios' && (
+                            <View className="flex-row justify-end gap-2 mt-2 mb-2">
+                              <TouchableOpacity
+                                onPress={() => setShowCreateStartPicker(false)}
+                                className="px-4 py-2 rounded-lg bg-gray-200 dark:bg-gray-700"
+                              >
+                                <Text className="text-gray-700 dark:text-gray-300 font-semibold">Cancel</Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                onPress={() => {
+                                  setShowCreateStartPicker(false);
+                                  if (createValidationErrors.startDate && createStartDate) {
+                                    setCreateValidationErrors({ ...createValidationErrors, startDate: '' });
+                                  }
+                                }}
+                                className="px-4 py-2 rounded-lg bg-blue-600"
+                              >
+                                <Text className="text-white font-semibold">Done</Text>
+                              </TouchableOpacity>
+                            </View>
+                          )}
+                          <DateTimePicker
+                            value={createStartDate ? new Date(createStartDate) : new Date()}
+                            mode="date"
+                            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                            onChange={(event, date) => {
+                              if (Platform.OS === 'android') {
+                                setShowCreateStartPicker(false);
+                              }
+                              if (date) {
+                                setCreateStartDate(date.toISOString().split('T')[0]);
+                                if (createValidationErrors.startDate) {
+                                  setCreateValidationErrors({ ...createValidationErrors, startDate: '' });
+                                }
+                              }
+                            }}
+                          />
+                        </View>
+                      )}
+                    </View>
+
+                    <View className="mt-4">
+                      <Text className="text-gray-700 dark:text-gray-300 font-semibold">End Date</Text>
+                      <TouchableOpacity
+                        onPress={() => setShowCreateEndPicker(true)}
+                        className={`bg-white dark:bg-gray-700 rounded-xl mt-1 px-4 py-3 border ${
+                          createValidationErrors.endDate 
+                            ? 'border-red-500 dark:border-red-500' 
+                            : 'border-gray-200 dark:border-gray-600'
+                        }`}
+                      >
+                        <Text className="text-gray-900 dark:text-white">
+                          {createEndDate ? new Date(createEndDate).toLocaleDateString() : 'Select end date (optional)'}
+                        </Text>
+                      </TouchableOpacity>
+                      {createValidationErrors.endDate && (
+                        <Text className="text-red-500 text-xs mt-1 ml-1">
+                          {createValidationErrors.endDate}
+                        </Text>
+                      )}
+                      {showCreateEndPicker && (
+                        <View>
+                          {Platform.OS === 'ios' && (
+                            <View className="flex-row justify-end gap-2 mt-2 mb-2">
+                              <TouchableOpacity
+                                onPress={() => setShowCreateEndPicker(false)}
+                                className="px-4 py-2 rounded-lg bg-gray-200 dark:bg-gray-700"
+                              >
+                                <Text className="text-gray-700 dark:text-gray-300 font-semibold">Cancel</Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                onPress={() => {
+                                  setShowCreateEndPicker(false);
+                                  if (createValidationErrors.endDate && createEndDate) {
+                                    setCreateValidationErrors({ ...createValidationErrors, endDate: '' });
+                                  }
+                                }}
+                                className="px-4 py-2 rounded-lg bg-blue-600"
+                              >
+                                <Text className="text-white font-semibold">Done</Text>
+                              </TouchableOpacity>
+                            </View>
+                          )}
+                          <DateTimePicker
+                            value={createEndDate ? new Date(createEndDate) : new Date()}
+                            mode="date"
+                            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                            onChange={(event, date) => {
+                              if (Platform.OS === 'android') {
+                                setShowCreateEndPicker(false);
+                              }
+                              if (date) {
+                                setCreateEndDate(date.toISOString().split('T')[0]);
+                                if (createValidationErrors.endDate) {
+                                  setCreateValidationErrors({ ...createValidationErrors, endDate: '' });
+                                }
+                              }
+                            }}
+                          />
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                </ScrollView>
+
+                {/* Action Buttons - Outside ScrollView for better touch handling */}
+                <View 
+                  className="p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+                  onStartShouldSetResponder={() => true}
+                >
+                  <View className="flex-row gap-3">
+                    <TouchableOpacity
+                      onPress={() => {
+                        console.log('Create Medication button pressed');
+                        handleCreateMedication();
+                      }}
+                      disabled={creating || !createName || !createDosage || !createStartDate}
+                      className={`flex-1 px-6 py-4 rounded-xl ${
+                        creating || !createName || !createDosage || !createStartDate
+                          ? 'bg-blue-300 opacity-50' 
+                          : 'bg-blue-600'
+                      }`}
+                      activeOpacity={0.7}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                      <Text className="text-white text-lg font-semibold text-center">
+                        {creating ? 'Creating...' : 'Create Medication'}
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={closeCreateMedModal}
+                      className="bg-gray-500 px-6 py-4 rounded-xl"
+                      activeOpacity={0.7}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                      <Text className="text-white text-lg font-semibold text-center">
+                        Cancel
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            </KeyboardAvoidingView>
+          </Pressable>
+        )}
       </Modal>
 
     </View>

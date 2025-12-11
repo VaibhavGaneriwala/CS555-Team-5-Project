@@ -51,6 +51,8 @@ export default function ProviderHome() {
   const [state, setState] = useState('');
   const [zipcode, setZipcode] = useState('');
   const [isFocusState, setIsFocusState] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     const loadToken = async () => {
@@ -213,33 +215,61 @@ export default function ProviderHome() {
       setCity(provider.address?.city || '');
       setState(provider.address?.state || '');
       setZipcode(provider.address?.zipcode || '');
+      setValidationErrors({});
+      setSaveError(null);
       setEditModalVisible(true);
     }
   };
 
   const handleSaveProviderInfo = async () => {
-    // Validation
-    if (phoneNumber && !/^\d{10}$/.test(phoneNumber)) {
-      Alert.alert('Validation Error', 'Phone number must be exactly 10 digits.');
-      return;
-    }
+    // Clear previous errors
+    setValidationErrors({});
+    setSaveError(null);
 
-    if (zipcode && !/^\d{5}$/.test(zipcode)) {
-      Alert.alert('Validation Error', 'Zipcode must be exactly 5 digits.');
-      return;
-    }
+    const errors: Record<string, string> = {};
 
-    if (streetAddress || city || state || zipcode) {
-      if (!streetAddress || !city || !state || !zipcode) {
-        Alert.alert('Validation Error', 'All address fields are required if providing an address.');
-        return;
+    // Validate phone number if provided
+    if (phoneNumber && phoneNumber.trim() !== '') {
+      if (!/^\d{10}$/.test(phoneNumber)) {
+        errors.phoneNumber = 'Phone number must be exactly 10 digits';
       }
+    }
+
+    // Validate address fields - if any address field is provided, all are required
+    if (streetAddress || city || state || zipcode) {
+      if (!streetAddress || streetAddress.trim() === '') {
+        errors.streetAddress = 'Street address is required';
+      }
+      if (!city || city.trim() === '') {
+        errors.city = 'City is required';
+      }
+      if (!state || state.trim() === '') {
+        errors.state = 'State is required';
+      }
+      if (!zipcode || zipcode.trim() === '') {
+        errors.zipcode = 'Zipcode is required';
+      } else if (!/^\d{5}$/.test(zipcode)) {
+        errors.zipcode = 'Zipcode must be exactly 5 digits';
+      }
+    }
+
+    // If there are validation errors, show them and return
+    if (Object.keys(errors).length > 0) {
+      setValidationErrors(errors);
+      if (Platform.OS !== 'web') {
+        Alert.alert('Validation Error', 'Please fix the errors in the form.');
+      }
+      return;
     }
 
     setSaving(true);
     try {
       if (!token) {
-        Alert.alert('Error', 'Authentication token missing.');
+        const errorMessage = 'Authentication token missing. Please log in again.';
+        setSaveError(errorMessage);
+        if (Platform.OS !== 'web') {
+          Alert.alert('Error', errorMessage);
+        }
         setSaving(false);
         return;
       }
@@ -271,15 +301,33 @@ export default function ProviderHome() {
       const data = await response.json();
 
       if (!response.ok) {
-        Alert.alert('Error', data.message || 'Failed to update provider information.');
-      } else {
-        Alert.alert('Success', 'Provider information updated successfully.');
-        setEditModalVisible(false);
-        fetchProvider(); // Refresh provider data
+        const errorMessage = data.message || 'Failed to update provider information.';
+        setSaveError(errorMessage);
+        if (Platform.OS !== 'web') {
+          Alert.alert('Error', errorMessage);
+        }
+        setSaving(false);
+        return;
       }
+
+      // Success
+      if (Platform.OS === 'web') {
+        setSaveError(null);
+        setValidationErrors({});
+      } else {
+        Alert.alert('Success', 'Provider information updated successfully!');
+      }
+      setEditModalVisible(false);
+      setValidationErrors({});
+      setSaveError(null);
+      await fetchProvider();
     } catch (err) {
       console.error('Error updating provider:', err);
-      Alert.alert('Error', 'Could not connect to server.');
+      const errorMessage = 'Could not connect to server. Please check your connection and try again.';
+      setSaveError(errorMessage);
+      if (Platform.OS !== 'web') {
+        Alert.alert('Error', errorMessage);
+      }
     } finally {
       setSaving(false);
     }
@@ -400,16 +448,15 @@ export default function ProviderHome() {
                 </View>
               )}
               {provider.address && (
-                <View className="flex-row items-start">
-                  <Ionicons name="location-outline" size={18} color="#6b7280" style={{ marginTop: 2 }} />
-                  <View className="ml-2 flex-1">
-                    <Text className="text-gray-700 dark:text-gray-300">
-                      {provider.address.streetAddress}
-                    </Text>
-                    <Text className="text-gray-700 dark:text-gray-300">
-                      {provider.address.city}, {provider.address.state} {provider.address.zipcode}
-                    </Text>
-                  </View>
+                <View className="flex-row items-center">
+                  <Ionicons name="location-outline" size={18} color="#6b7280" />
+                  <Text 
+                    className="text-gray-700 dark:text-gray-300 ml-2 flex-1"
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
+                  >
+                    {provider.address.streetAddress}, {provider.address.city}, {provider.address.state} {provider.address.zipcode}
+                  </Text>
                 </View>
               )}
             </View>
@@ -470,6 +517,43 @@ export default function ProviderHome() {
                   nestedScrollEnabled={true}
                   bounces={true}
                 >
+                  {/* Error Banner */}
+                  {saveError && (
+                    <View className="mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
+                      <View className="flex-row items-start">
+                        <Ionicons name="alert-circle" size={20} color="#ef4444" style={{ marginRight: 8, marginTop: 2 }} />
+                        <Text className="text-red-700 dark:text-red-400 flex-1 text-sm font-medium">
+                          {saveError}
+                        </Text>
+                        <TouchableOpacity onPress={() => setSaveError(null)}>
+                          <Ionicons name="close" size={18} color="#ef4444" />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  )}
+
+                  {/* Validation Errors Banner */}
+                  {Object.keys(validationErrors).length > 0 && (
+                    <View className="mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
+                      <View className="flex-row items-start">
+                        <Ionicons name="alert-circle" size={20} color="#ef4444" style={{ marginRight: 8, marginTop: 2 }} />
+                        <View className="flex-1">
+                          <Text className="text-red-700 dark:text-red-400 text-sm font-semibold mb-1">
+                            Please fix the following errors:
+                          </Text>
+                          {Object.entries(validationErrors).map(([field, message]) => (
+                            <Text key={field} className="text-red-600 dark:text-red-400 text-sm">
+                              • {message}
+                            </Text>
+                          ))}
+                        </View>
+                        <TouchableOpacity onPress={() => setValidationErrors({})}>
+                          <Ionicons name="close" size={18} color="#ef4444" />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  )}
+
                   {/* Read-only Information */}
                   <View className="mb-4">
                     <Text className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
@@ -480,33 +564,42 @@ export default function ProviderHome() {
                       <Text className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Name
                       </Text>
-                      <View className="bg-gray-100 dark:bg-gray-700 rounded-xl px-4 py-3 border border-gray-200 dark:border-gray-600">
-                        <Text className="text-gray-900 dark:text-white">
+                      <View className="bg-gray-100 dark:bg-gray-700 rounded-xl px-4 py-3 border border-gray-200 dark:border-gray-600 opacity-60">
+                        <Text className="text-gray-500 dark:text-gray-400">
                           {provider?.firstName} {provider?.lastName}
                         </Text>
                       </View>
+                      <Text className="text-xs text-gray-500 dark:text-gray-400 mt-1 ml-1">
+                        This field cannot be edited
+                      </Text>
                     </View>
 
                     <View className="mb-4">
                       <Text className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Email
                       </Text>
-                      <View className="bg-gray-100 dark:bg-gray-700 rounded-xl px-4 py-3 border border-gray-200 dark:border-gray-600">
-                        <Text className="text-gray-900 dark:text-white">
+                      <View className="bg-gray-100 dark:bg-gray-700 rounded-xl px-4 py-3 border border-gray-200 dark:border-gray-600 opacity-60">
+                        <Text className="text-gray-500 dark:text-gray-400">
                           {provider?.email}
                         </Text>
                       </View>
+                      <Text className="text-xs text-gray-500 dark:text-gray-400 mt-1 ml-1">
+                        This field cannot be edited
+                      </Text>
                     </View>
 
                     <View className="mb-4">
                       <Text className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Role
                       </Text>
-                      <View className="bg-gray-100 dark:bg-gray-700 rounded-xl px-4 py-3 border border-gray-200 dark:border-gray-600">
-                        <Text className="text-gray-900 dark:text-white capitalize">
+                      <View className="bg-gray-100 dark:bg-gray-700 rounded-xl px-4 py-3 border border-gray-200 dark:border-gray-600 opacity-60">
+                        <Text className="text-gray-500 dark:text-gray-400 capitalize">
                           {provider?.role}
                         </Text>
                       </View>
+                      <Text className="text-xs text-gray-500 dark:text-gray-400 mt-1 ml-1">
+                        This field cannot be edited
+                      </Text>
                     </View>
                   </View>
 
@@ -522,13 +615,27 @@ export default function ProviderHome() {
                       </Text>
                       <TextInput
                         value={phoneNumber}
-                        onChangeText={setPhoneNumber}
+                        onChangeText={(text) => {
+                          setPhoneNumber(text);
+                          if (validationErrors.phoneNumber) {
+                            setValidationErrors({ ...validationErrors, phoneNumber: '' });
+                          }
+                        }}
                         keyboardType="phone-pad"
                         maxLength={10}
-                        className="bg-gray-50 dark:bg-gray-700 rounded-xl px-4 py-3 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-600"
+                        className={`bg-gray-50 dark:bg-gray-700 rounded-xl px-4 py-3 text-gray-900 dark:text-white border ${
+                          validationErrors.phoneNumber 
+                            ? 'border-red-500 dark:border-red-500' 
+                            : 'border-gray-200 dark:border-gray-600'
+                        }`}
                         placeholder="10 digits"
                         placeholderTextColor="#9ca3af"
                       />
+                      {validationErrors.phoneNumber && (
+                        <Text className="text-red-500 text-xs mt-1 ml-1">
+                          {validationErrors.phoneNumber}
+                        </Text>
+                      )}
                     </View>
                   </View>
 
@@ -540,33 +647,61 @@ export default function ProviderHome() {
 
                     <View className="mb-4">
                       <Text className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Street Address
+                        Street Address <Text className="text-red-500">*</Text>
                       </Text>
                       <TextInput
                         value={streetAddress}
-                        onChangeText={setStreetAddress}
-                        className="bg-gray-50 dark:bg-gray-700 rounded-xl px-4 py-3 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-600"
+                        onChangeText={(text) => {
+                          setStreetAddress(text);
+                          if (validationErrors.streetAddress) {
+                            setValidationErrors({ ...validationErrors, streetAddress: '' });
+                          }
+                        }}
+                        className={`bg-gray-50 dark:bg-gray-700 rounded-xl px-4 py-3 text-gray-900 dark:text-white border ${
+                          validationErrors.streetAddress 
+                            ? 'border-red-500 dark:border-red-500' 
+                            : 'border-gray-200 dark:border-gray-600'
+                        }`}
                         placeholder="Street Address"
                         placeholderTextColor="#9ca3af"
                       />
+                      {validationErrors.streetAddress && (
+                        <Text className="text-red-500 text-xs mt-1 ml-1">
+                          {validationErrors.streetAddress}
+                        </Text>
+                      )}
                     </View>
 
                     <View className="mb-4">
                       <Text className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        City
+                        City <Text className="text-red-500">*</Text>
                       </Text>
                       <TextInput
                         value={city}
-                        onChangeText={setCity}
-                        className="bg-gray-50 dark:bg-gray-700 rounded-xl px-4 py-3 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-600"
+                        onChangeText={(text) => {
+                          setCity(text);
+                          if (validationErrors.city) {
+                            setValidationErrors({ ...validationErrors, city: '' });
+                          }
+                        }}
+                        className={`bg-gray-50 dark:bg-gray-700 rounded-xl px-4 py-3 text-gray-900 dark:text-white border ${
+                          validationErrors.city 
+                            ? 'border-red-500 dark:border-red-500' 
+                            : 'border-gray-200 dark:border-gray-600'
+                        }`}
                         placeholder="City"
                         placeholderTextColor="#9ca3af"
                       />
+                      {validationErrors.city && (
+                        <Text className="text-red-500 text-xs mt-1 ml-1">
+                          {validationErrors.city}
+                        </Text>
+                      )}
                     </View>
 
                     <View className="mb-4">
                       <Text className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        State
+                        State <Text className="text-red-500">*</Text>
                       </Text>
                       <View style={{ zIndex: 1000, elevation: 10 }}>
                         <Dropdown
@@ -575,14 +710,19 @@ export default function ProviderHome() {
                           valueField="value"
                           placeholder="Select State"
                           value={state}
-                          onChange={(item) => setState(item.value)}
+                          onChange={(item) => {
+                            setState(item.value);
+                            if (validationErrors.state) {
+                              setValidationErrors({ ...validationErrors, state: '' });
+                            }
+                          }}
                           style={{
                             backgroundColor: '#f9fafb',
                             borderRadius: 12,
                             paddingHorizontal: 16,
                             paddingVertical: 12,
                             borderWidth: 1,
-                            borderColor: '#e5e7eb',
+                            borderColor: validationErrors.state ? '#ef4444' : '#e5e7eb',
                             minHeight: 50,
                           }}
                           placeholderStyle={{
@@ -608,21 +748,40 @@ export default function ProviderHome() {
                           searchPlaceholder="Search states..."
                         />
                       </View>
+                      {validationErrors.state && (
+                        <Text className="text-red-500 text-xs mt-1 ml-1">
+                          {validationErrors.state}
+                        </Text>
+                      )}
                     </View>
 
                     <View className="mb-4">
                       <Text className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Zipcode
+                        Zipcode <Text className="text-red-500">*</Text>
                       </Text>
                       <TextInput
                         value={zipcode}
-                        onChangeText={setZipcode}
+                        onChangeText={(text) => {
+                          setZipcode(text);
+                          if (validationErrors.zipcode) {
+                            setValidationErrors({ ...validationErrors, zipcode: '' });
+                          }
+                        }}
                         keyboardType="number-pad"
                         maxLength={5}
-                        className="bg-gray-50 dark:bg-gray-700 rounded-xl px-4 py-3 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-600"
+                        className={`bg-gray-50 dark:bg-gray-700 rounded-xl px-4 py-3 text-gray-900 dark:text-white border ${
+                          validationErrors.zipcode 
+                            ? 'border-red-500 dark:border-red-500' 
+                            : 'border-gray-200 dark:border-gray-600'
+                        }`}
                         placeholder="5 digits"
                         placeholderTextColor="#9ca3af"
                       />
+                      {validationErrors.zipcode && (
+                        <Text className="text-red-500 text-xs mt-1 ml-1">
+                          {validationErrors.zipcode}
+                        </Text>
+                      )}
                     </View>
                   </View>
 
@@ -704,6 +863,43 @@ export default function ProviderHome() {
                     nestedScrollEnabled={true}
                     bounces={true}
                   >
+                    {/* Error Banner */}
+                    {saveError && (
+                      <View className="mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
+                        <View className="flex-row items-start">
+                          <Ionicons name="alert-circle" size={20} color="#ef4444" style={{ marginRight: 8, marginTop: 2 }} />
+                          <Text className="text-red-700 dark:text-red-400 flex-1 text-sm font-medium">
+                            {saveError}
+                          </Text>
+                          <TouchableOpacity onPress={() => setSaveError(null)}>
+                            <Ionicons name="close" size={18} color="#ef4444" />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    )}
+
+                    {/* Validation Errors Banner */}
+                    {Object.keys(validationErrors).length > 0 && (
+                      <View className="mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
+                        <View className="flex-row items-start">
+                          <Ionicons name="alert-circle" size={20} color="#ef4444" style={{ marginRight: 8, marginTop: 2 }} />
+                          <View className="flex-1">
+                            <Text className="text-red-700 dark:text-red-400 text-sm font-semibold mb-1">
+                              Please fix the following errors:
+                            </Text>
+                            {Object.entries(validationErrors).map(([field, message]) => (
+                              <Text key={field} className="text-red-600 dark:text-red-400 text-sm">
+                                • {message}
+                              </Text>
+                            ))}
+                          </View>
+                          <TouchableOpacity onPress={() => setValidationErrors({})}>
+                            <Ionicons name="close" size={18} color="#ef4444" />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    )}
+
                     {/* Read-only Information */}
                     <View className="mb-4">
                       <Text className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
@@ -714,33 +910,42 @@ export default function ProviderHome() {
                         <Text className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                           Name
                         </Text>
-                        <View className="bg-gray-100 dark:bg-gray-700 rounded-xl px-4 py-3 border border-gray-200 dark:border-gray-600">
-                          <Text className="text-gray-900 dark:text-white">
+                        <View className="bg-gray-100 dark:bg-gray-700 rounded-xl px-4 py-3 border border-gray-200 dark:border-gray-600 opacity-60">
+                          <Text className="text-gray-500 dark:text-gray-400">
                             {provider?.firstName} {provider?.lastName}
                           </Text>
                         </View>
+                        <Text className="text-xs text-gray-500 dark:text-gray-400 mt-1 ml-1">
+                          This field cannot be edited
+                        </Text>
                       </View>
 
                       <View className="mb-4">
                         <Text className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                           Email
                         </Text>
-                        <View className="bg-gray-100 dark:bg-gray-700 rounded-xl px-4 py-3 border border-gray-200 dark:border-gray-600">
-                          <Text className="text-gray-900 dark:text-white">
+                        <View className="bg-gray-100 dark:bg-gray-700 rounded-xl px-4 py-3 border border-gray-200 dark:border-gray-600 opacity-60">
+                          <Text className="text-gray-500 dark:text-gray-400">
                             {provider?.email}
                           </Text>
                         </View>
+                        <Text className="text-xs text-gray-500 dark:text-gray-400 mt-1 ml-1">
+                          This field cannot be edited
+                        </Text>
                       </View>
 
                       <View className="mb-4">
                         <Text className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                           Role
                         </Text>
-                        <View className="bg-gray-100 dark:bg-gray-700 rounded-xl px-4 py-3 border border-gray-200 dark:border-gray-600">
-                          <Text className="text-gray-900 dark:text-white capitalize">
+                        <View className="bg-gray-100 dark:bg-gray-700 rounded-xl px-4 py-3 border border-gray-200 dark:border-gray-600 opacity-60">
+                          <Text className="text-gray-500 dark:text-gray-400 capitalize">
                             {provider?.role}
                           </Text>
                         </View>
+                        <Text className="text-xs text-gray-500 dark:text-gray-400 mt-1 ml-1">
+                          This field cannot be edited
+                        </Text>
                       </View>
                     </View>
 
@@ -756,13 +961,27 @@ export default function ProviderHome() {
                         </Text>
                         <TextInput
                           value={phoneNumber}
-                          onChangeText={setPhoneNumber}
+                          onChangeText={(text) => {
+                            setPhoneNumber(text);
+                            if (validationErrors.phoneNumber) {
+                              setValidationErrors({ ...validationErrors, phoneNumber: '' });
+                            }
+                          }}
                           keyboardType="phone-pad"
                           maxLength={10}
-                          className="bg-gray-50 dark:bg-gray-700 rounded-xl px-4 py-3 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-600"
+                          className={`bg-gray-50 dark:bg-gray-700 rounded-xl px-4 py-3 text-gray-900 dark:text-white border ${
+                            validationErrors.phoneNumber 
+                              ? 'border-red-500 dark:border-red-500' 
+                              : 'border-gray-200 dark:border-gray-600'
+                          }`}
                           placeholder="10 digits"
                           placeholderTextColor="#9ca3af"
                         />
+                        {validationErrors.phoneNumber && (
+                          <Text className="text-red-500 text-xs mt-1 ml-1">
+                            {validationErrors.phoneNumber}
+                          </Text>
+                        )}
                       </View>
                     </View>
 
@@ -774,33 +993,61 @@ export default function ProviderHome() {
 
                       <View className="mb-4">
                         <Text className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Street Address
+                          Street Address <Text className="text-red-500">*</Text>
                         </Text>
                         <TextInput
                           value={streetAddress}
-                          onChangeText={setStreetAddress}
-                          className="bg-gray-50 dark:bg-gray-700 rounded-xl px-4 py-3 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-600"
+                          onChangeText={(text) => {
+                            setStreetAddress(text);
+                            if (validationErrors.streetAddress) {
+                              setValidationErrors({ ...validationErrors, streetAddress: '' });
+                            }
+                          }}
+                          className={`bg-gray-50 dark:bg-gray-700 rounded-xl px-4 py-3 text-gray-900 dark:text-white border ${
+                            validationErrors.streetAddress 
+                              ? 'border-red-500 dark:border-red-500' 
+                              : 'border-gray-200 dark:border-gray-600'
+                          }`}
                           placeholder="Street Address"
                           placeholderTextColor="#9ca3af"
                         />
+                        {validationErrors.streetAddress && (
+                          <Text className="text-red-500 text-xs mt-1 ml-1">
+                            {validationErrors.streetAddress}
+                          </Text>
+                        )}
                       </View>
 
                       <View className="mb-4">
                         <Text className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          City
+                          City <Text className="text-red-500">*</Text>
                         </Text>
                         <TextInput
                           value={city}
-                          onChangeText={setCity}
-                          className="bg-gray-50 dark:bg-gray-700 rounded-xl px-4 py-3 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-600"
+                          onChangeText={(text) => {
+                            setCity(text);
+                            if (validationErrors.city) {
+                              setValidationErrors({ ...validationErrors, city: '' });
+                            }
+                          }}
+                          className={`bg-gray-50 dark:bg-gray-700 rounded-xl px-4 py-3 text-gray-900 dark:text-white border ${
+                            validationErrors.city 
+                              ? 'border-red-500 dark:border-red-500' 
+                              : 'border-gray-200 dark:border-gray-600'
+                          }`}
                           placeholder="City"
                           placeholderTextColor="#9ca3af"
                         />
+                        {validationErrors.city && (
+                          <Text className="text-red-500 text-xs mt-1 ml-1">
+                            {validationErrors.city}
+                          </Text>
+                        )}
                       </View>
 
                       <View className="mb-4">
                         <Text className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          State
+                          State <Text className="text-red-500">*</Text>
                         </Text>
                         <View style={{ zIndex: 999, elevation: 9 }}>
                           <Dropdown
@@ -809,14 +1056,19 @@ export default function ProviderHome() {
                             valueField="value"
                             placeholder="Select State"
                             value={state}
-                            onChange={(item) => setState(item.value)}
+                            onChange={(item) => {
+                              setState(item.value);
+                              if (validationErrors.state) {
+                                setValidationErrors({ ...validationErrors, state: '' });
+                              }
+                            }}
                             style={{
                               backgroundColor: '#f9fafb',
                               borderRadius: 12,
                               paddingHorizontal: 16,
                               paddingVertical: 12,
                               borderWidth: 1,
-                              borderColor: '#e5e7eb',
+                              borderColor: validationErrors.state ? '#ef4444' : '#e5e7eb',
                               minHeight: 50,
                             }}
                             placeholderStyle={{
@@ -842,21 +1094,40 @@ export default function ProviderHome() {
                             searchPlaceholder="Search states..."
                           />
                         </View>
+                        {validationErrors.state && (
+                          <Text className="text-red-500 text-xs mt-1 ml-1">
+                            {validationErrors.state}
+                          </Text>
+                        )}
                       </View>
 
                       <View className="mb-4">
                         <Text className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Zipcode
+                          Zipcode <Text className="text-red-500">*</Text>
                         </Text>
                         <TextInput
                           value={zipcode}
-                          onChangeText={setZipcode}
+                          onChangeText={(text) => {
+                            setZipcode(text);
+                            if (validationErrors.zipcode) {
+                              setValidationErrors({ ...validationErrors, zipcode: '' });
+                            }
+                          }}
                           keyboardType="number-pad"
                           maxLength={5}
-                          className="bg-gray-50 dark:bg-gray-700 rounded-xl px-4 py-3 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-600"
+                          className={`bg-gray-50 dark:bg-gray-700 rounded-xl px-4 py-3 text-gray-900 dark:text-white border ${
+                            validationErrors.zipcode 
+                              ? 'border-red-500 dark:border-red-500' 
+                              : 'border-gray-200 dark:border-gray-600'
+                          }`}
                           placeholder="5 digits"
                           placeholderTextColor="#9ca3af"
                         />
+                        {validationErrors.zipcode && (
+                          <Text className="text-red-500 text-xs mt-1 ml-1">
+                            {validationErrors.zipcode}
+                          </Text>
+                        )}
                       </View>
                     </View>
 

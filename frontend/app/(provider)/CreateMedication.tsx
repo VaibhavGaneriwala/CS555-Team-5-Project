@@ -12,6 +12,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, router } from "expo-router";
 import ProviderNavbar from '@/components/ProviderNavbar';
 import Constants from "expo-constants";
+import { Ionicons } from "@expo/vector-icons";
 
 const API_URL = Constants.expoConfig?.extra?.API_URL ?? "http://localhost:3000";
 
@@ -39,76 +40,83 @@ export default function CreateMedication() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   async function handleCreate() {
-    setError(null);
+    // Clear previous errors
     setSuccess(false);
-
-    if (!name || !dosage || !frequency || !scheduleText || !startDate) {
-      const errorMsg = "Please fill all required fields.";
-      if (Platform.OS === 'web') {
-        setError(errorMsg);
-      } else {
-        Alert.alert("Missing Required Fields", errorMsg);
-      }
-      return;
-    }
+    setValidationErrors({});
+    setSaveError(null);
 
     if (!patientId) {
       const errorMsg = "Patient ID is missing. Please go back and try again.";
       if (Platform.OS === 'web') {
-        setError(errorMsg);
+        setSaveError(errorMsg);
       } else {
         Alert.alert("Error", errorMsg);
       }
       return;
     }
 
-    const times = scheduleText
-      .split(",")
-      .map((t) => t.trim())
-      .filter(Boolean);
+    const errors: Record<string, string> = {};
 
-    if (!times.length) {
-      const errorMsg = "Please enter at least one time (e.g. 08:00, 20:00).";
-      if (Platform.OS === 'web') {
-        setError(errorMsg);
-      } else {
-        Alert.alert("Invalid Schedule", errorMsg);
-      }
-      return;
+    // Validate required fields (only name, dosage, and startDate are required)
+    if (!name || name.trim() === '') {
+      errors.name = 'Medication name is required';
     }
 
-    // Validate date range
-    if (endDate) {
+    if (!dosage || dosage.trim() === '') {
+      errors.dosage = 'Dosage is required';
+    }
+
+    if (!startDate || startDate.trim() === '') {
+      errors.startDate = 'Start date is required';
+    }
+
+    // Validate schedule format if provided (optional for creation, but validate format if entered)
+    let schedulePayload: Array<{ time: string; days: string[] }> = [];
+    if (scheduleText && scheduleText.trim() !== '') {
+      const times = scheduleText
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean);
+
+      if (times.length > 0) {
+        // Validate time format (HH:MM)
+        const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
+        const invalidTimes = times.filter(time => !timeRegex.test(time));
+        if (invalidTimes.length > 0) {
+          errors.schedule = `Invalid time format. Use HH:MM (e.g., 08:00, 20:30)`;
+        } else {
+          schedulePayload = times.map((time) => ({
+            time,
+            days: [],
+          }));
+        }
+      }
+    }
+
+    // Validate date range if end date is provided
+    if (endDate && endDate.trim() !== '') {
       const start = new Date(startDate);
       const end = new Date(endDate);
       
       if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-        const errorMsg = "Please enter valid dates in YYYY-MM-DD format.";
-        if (Platform.OS === 'web') {
-          setError(errorMsg);
-        } else {
-          Alert.alert("Invalid Date", errorMsg);
-        }
-        return;
-      }
-
-      if (start > end) {
-        const errorMsg = "Start date cannot be later than end date.";
-        if (Platform.OS === 'web') {
-          setError(errorMsg);
-        } else {
-          Alert.alert("Invalid Date Range", errorMsg);
-        }
-        return;
+        errors.endDate = 'Invalid date format';
+      } else if (start > end) {
+        errors.endDate = 'End date cannot be earlier than start date';
       }
     }
 
-    const schedulePayload = times.map((time) => ({
-      time,
-      days: [], // you can extend UI later to select days
-    }));
+    // If there are validation errors, show them and return
+    if (Object.keys(errors).length > 0) {
+      setValidationErrors(errors);
+      if (Platform.OS !== 'web') {
+        Alert.alert('Validation Error', 'Please fix the errors in the form.');
+      }
+      return;
+    }
 
     setLoading(true);
 
@@ -117,9 +125,8 @@ export default function CreateMedication() {
       
       if (!token) {
         const errorMsg = "Authentication token missing. Please log in again.";
-        if (Platform.OS === 'web') {
-          setError(errorMsg);
-        } else {
+        setSaveError(errorMsg);
+        if (Platform.OS !== 'web') {
           Alert.alert("Error", errorMsg);
         }
         setLoading(false);
@@ -131,10 +138,10 @@ export default function CreateMedication() {
         name,
         dosage,
         frequency,
-        schedule: schedulePayload,
+        ...(schedulePayload.length > 0 && { schedule: schedulePayload }),
         startDate,
-        endDate: endDate || undefined,
-        instructions: instructions || undefined,
+        ...(endDate && endDate.trim() !== '' && { endDate }),
+        ...(instructions && instructions.trim() !== '' && { instructions }),
       };
 
       const res = await fetch(`${API_URL}/api/medications`, {
@@ -150,9 +157,8 @@ export default function CreateMedication() {
 
       if (!res.ok) {
         const errorMsg = data.message || "Failed to create medication";
-        if (Platform.OS === 'web') {
-          setError(errorMsg);
-        } else {
+        setSaveError(errorMsg);
+        if (Platform.OS !== 'web') {
           Alert.alert("Error", errorMsg);
         }
         setLoading(false);
@@ -183,10 +189,9 @@ export default function CreateMedication() {
       }
     } catch (err: any) {
       console.error("Error creating medication:", err);
-      const errorMsg = err.message || "Server error. Please try again.";
-      if (Platform.OS === 'web') {
-        setError(errorMsg);
-      } else {
+      const errorMsg = err.message || "Could not connect to server. Please check your connection and try again.";
+      setSaveError(errorMsg);
+      if (Platform.OS !== 'web') {
         Alert.alert("Error", errorMsg);
       }
       setLoading(false);
@@ -220,12 +225,40 @@ export default function CreateMedication() {
         Add Medication
       </Text>
 
-      {/* Error Message */}
-      {error && (
-        <View className="bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-700 rounded-xl p-4 mb-4">
-          <Text className="text-red-700 dark:text-red-300 font-semibold text-center">
-            {error}
-          </Text>
+      {/* Save Error Banner */}
+      {saveError && (
+        <View className="mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
+          <View className="flex-row items-start">
+            <Ionicons name="alert-circle" size={20} color="#ef4444" style={{ marginRight: 8, marginTop: 2 }} />
+            <Text className="text-red-700 dark:text-red-400 flex-1 text-sm font-medium">
+              {saveError}
+            </Text>
+            <TouchableOpacity onPress={() => setSaveError(null)}>
+              <Ionicons name="close" size={18} color="#ef4444" />
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* Validation Errors Banner */}
+      {Object.keys(validationErrors).length > 0 && (
+        <View className="mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
+          <View className="flex-row items-start">
+            <Ionicons name="alert-circle" size={20} color="#ef4444" style={{ marginRight: 8, marginTop: 2 }} />
+            <View className="flex-1">
+              <Text className="text-red-700 dark:text-red-400 text-sm font-semibold mb-1">
+                Please fix the following errors:
+              </Text>
+              {Object.entries(validationErrors).map(([field, message]) => (
+                <Text key={field} className="text-red-600 dark:text-red-400 text-sm">
+                  • {message}
+                </Text>
+              ))}
+            </View>
+            <TouchableOpacity onPress={() => setValidationErrors({})}>
+              <Ionicons name="close" size={18} color="#ef4444" />
+            </TouchableOpacity>
+          </View>
         </View>
       )}
 
@@ -239,32 +272,60 @@ export default function CreateMedication() {
       )}
 
       <View className="bg-gray-100 dark:bg-gray-800 p-5 rounded-2xl shadow">
-        <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-2">Name *</Text>
+        <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-2">
+          Name <Text className="text-red-500">*</Text>
+        </Text>
         <TextInput
           value={name}
           onChangeText={(text) => {
             setName(text);
-            if (error) setError(null);
+            if (validationErrors.name) {
+              setValidationErrors({ ...validationErrors, name: '' });
+            }
+            if (saveError) setSaveError(null);
           }}
-          className="bg-white dark:bg-gray-700 rounded-xl mt-1 px-4 py-3 text-gray-900 dark:text-white"
+          className={`bg-white dark:bg-gray-700 rounded-xl mt-1 px-4 py-3 text-gray-900 dark:text-white border ${
+            validationErrors.name 
+              ? 'border-red-500 dark:border-red-500' 
+              : 'border-gray-200 dark:border-gray-600'
+          }`}
           placeholder="Medication Name"
           placeholderTextColor="#aaa"
         />
+        {validationErrors.name && (
+          <Text className="text-red-500 text-xs mt-1 ml-1">
+            {validationErrors.name}
+          </Text>
+        )}
 
-        <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4">Dosage *</Text>
+        <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4">
+          Dosage <Text className="text-red-500">*</Text>
+        </Text>
         <TextInput
           value={dosage}
           onChangeText={(text) => {
             setDosage(text);
-            if (error) setError(null);
+            if (validationErrors.dosage) {
+              setValidationErrors({ ...validationErrors, dosage: '' });
+            }
+            if (saveError) setSaveError(null);
           }}
-          className="bg-white dark:bg-gray-700 rounded-xl mt-1 px-4 py-3"
+          className={`bg-white dark:bg-gray-700 rounded-xl mt-1 px-4 py-3 text-gray-900 dark:text-white border ${
+            validationErrors.dosage 
+              ? 'border-red-500 dark:border-red-500' 
+              : 'border-gray-200 dark:border-gray-600'
+          }`}
           placeholder="e.g. 500mg"
           placeholderTextColor="#aaa"
         />
+        {validationErrors.dosage && (
+          <Text className="text-red-500 text-xs mt-1 ml-1">
+            {validationErrors.dosage}
+          </Text>
+        )}
 
         <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4">
-          Frequency * (tap to select)
+          Frequency (tap to select)
         </Text>
         <View className="flex-row flex-wrap mt-1">
           {FREQUENCY_OPTIONS.map((opt) => (
@@ -291,42 +352,134 @@ export default function CreateMedication() {
         </View>
 
         <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4">
-          Schedule * (comma-separated times)
+          Schedule (comma-separated times)
         </Text>
         <TextInput
           value={scheduleText}
           onChangeText={(text) => {
             setScheduleText(text);
-            if (error) setError(null);
+            if (validationErrors.schedule) {
+              setValidationErrors({ ...validationErrors, schedule: '' });
+            }
+            if (saveError) setSaveError(null);
           }}
-          className="bg-white dark:bg-gray-700 rounded-xl mt-1 px-4 py-3"
+          className={`bg-white dark:bg-gray-700 rounded-xl mt-1 px-4 py-3 text-gray-900 dark:text-white border ${
+            validationErrors.schedule 
+              ? 'border-red-500 dark:border-red-500' 
+              : 'border-gray-200 dark:border-gray-600'
+          }`}
           placeholder="e.g. 08:00, 20:00"
           placeholderTextColor="#aaa"
         />
+        {validationErrors.schedule && (
+          <Text className="text-red-500 text-xs mt-1 ml-1">
+            {validationErrors.schedule}
+          </Text>
+        )}
 
-        <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4">Start Date *</Text>
-        <TextInput
-          value={startDate}
-          onChangeText={(text) => {
-            setStartDate(text);
-            if (error) setError(null);
-          }}
-          className="bg-white dark:bg-gray-700 rounded-xl mt-1 px-4 py-3"
-          placeholder="YYYY-MM-DD"
-          placeholderTextColor="#aaa"
-        />
+        <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4">
+          Start Date <Text className="text-red-500">*</Text>
+        </Text>
+        {Platform.OS === 'web' ? (
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => {
+              setStartDate(e.target.value);
+              if (validationErrors.startDate) {
+                setValidationErrors({ ...validationErrors, startDate: '' });
+              }
+              if (saveError) setSaveError(null);
+            }}
+            style={{
+              width: '100%',
+              padding: '12px',
+              borderRadius: '12px',
+              border: validationErrors.startDate 
+                ? '2px solid #ef4444' 
+                : '2px solid #e5e7eb',
+              fontSize: '16px',
+              backgroundColor: '#fff',
+              color: '#111827',
+              marginTop: '8px',
+            }}
+            className="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+          />
+        ) : (
+          <TextInput
+            value={startDate}
+            onChangeText={(text) => {
+              setStartDate(text);
+              if (validationErrors.startDate) {
+                setValidationErrors({ ...validationErrors, startDate: '' });
+              }
+              if (saveError) setSaveError(null);
+            }}
+            className={`bg-white dark:bg-gray-700 rounded-xl mt-1 px-4 py-3 text-gray-900 dark:text-white border ${
+              validationErrors.startDate 
+                ? 'border-red-500 dark:border-red-500' 
+                : 'border-gray-200 dark:border-gray-600'
+            }`}
+            placeholder="YYYY-MM-DD"
+            placeholderTextColor="#aaa"
+          />
+        )}
+        {validationErrors.startDate && (
+          <Text className="text-red-500 text-xs mt-1 ml-1">
+            {validationErrors.startDate}
+          </Text>
+        )}
 
         <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4">End Date</Text>
-        <TextInput
-          value={endDate}
-          onChangeText={(text) => {
-            setEndDate(text);
-            if (error) setError(null);
-          }}
-          className="bg-white dark:bg-gray-700 rounded-xl mt-1 px-4 py-3"
-          placeholder="YYYY-MM-DD"
-          placeholderTextColor="#aaa"
-        />
+        {Platform.OS === 'web' ? (
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => {
+              setEndDate(e.target.value);
+              if (validationErrors.endDate) {
+                setValidationErrors({ ...validationErrors, endDate: '' });
+              }
+              if (saveError) setSaveError(null);
+            }}
+            style={{
+              width: '100%',
+              padding: '12px',
+              borderRadius: '12px',
+              border: validationErrors.endDate 
+                ? '2px solid #ef4444' 
+                : '2px solid #e5e7eb',
+              fontSize: '16px',
+              backgroundColor: '#fff',
+              color: '#111827',
+              marginTop: '8px',
+            }}
+            className="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+          />
+        ) : (
+          <TextInput
+            value={endDate}
+            onChangeText={(text) => {
+              setEndDate(text);
+              if (validationErrors.endDate) {
+                setValidationErrors({ ...validationErrors, endDate: '' });
+              }
+              if (saveError) setSaveError(null);
+            }}
+            className={`bg-white dark:bg-gray-700 rounded-xl mt-1 px-4 py-3 text-gray-900 dark:text-white border ${
+              validationErrors.endDate 
+                ? 'border-red-500 dark:border-red-500' 
+                : 'border-gray-200 dark:border-gray-600'
+            }`}
+            placeholder="YYYY-MM-DD"
+            placeholderTextColor="#aaa"
+          />
+        )}
+        {validationErrors.endDate && (
+          <Text className="text-red-500 text-xs mt-1 ml-1">
+            {validationErrors.endDate}
+          </Text>
+        )}
 
         <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4">Instructions</Text>
         <TextInput

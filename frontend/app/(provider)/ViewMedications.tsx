@@ -86,6 +86,8 @@ export default function ViewMedications() {
   const [instructions, setInstructions] = useState("");
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const fetchMedications = async (showLoading = true) => {
     try {
@@ -187,15 +189,30 @@ export default function ViewMedications() {
     setInstructions("");
     setShowStartPicker(false);
     setShowEndPicker(false);
+    setValidationErrors({});
+    setSaveError(null);
   };
 
   const saveMedicationChanges = async () => {
     if (!editingMedication) return;
     
-    // Only name, dosage, and startDate are required
-    if (!name || !dosage || !startDate) {
-      Alert.alert("Missing Required Fields", "Please fill all required fields (Name, Dosage, Start Date).");
-      return;
+    // Clear previous errors
+    setValidationErrors({});
+    setSaveError(null);
+
+    const errors: Record<string, string> = {};
+
+    // Validate required fields (only name, dosage, and startDate)
+    if (!name || name.trim() === '') {
+      errors.name = 'Medication name is required';
+    }
+
+    if (!dosage || dosage.trim() === '') {
+      errors.dosage = 'Dosage is required';
+    }
+
+    if (!startDate || startDate.trim() === '') {
+      errors.startDate = 'Start date is required';
     }
 
     // Validate schedule format if provided (optional)
@@ -207,27 +224,39 @@ export default function ViewMedications() {
         .filter(Boolean);
 
       if (times.length > 0) {
-        schedulePayload = times.map((time) => ({
-          time,
-          days: [],
-        }));
+        // Validate time format (HH:MM)
+        const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
+        const invalidTimes = times.filter(time => !timeRegex.test(time));
+        if (invalidTimes.length > 0) {
+          errors.schedule = `Invalid time format. Use HH:MM (e.g., 08:00, 20:30)`;
+        } else {
+          schedulePayload = times.map((time) => ({
+            time,
+            days: [],
+          }));
+        }
       }
     }
 
-    // Validate date range
-    if (endDate) {
+    // Validate date range if end date is provided
+    if (endDate && endDate.trim() !== '') {
       const start = new Date(startDate);
       const end = new Date(endDate);
       
       if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-        Alert.alert("Invalid Date", "Please enter valid dates in YYYY-MM-DD format.");
-        return;
+        errors.endDate = 'Invalid date format';
+      } else if (start > end) {
+        errors.endDate = 'End date cannot be earlier than start date';
       }
+    }
 
-      if (start > end) {
-        Alert.alert("Invalid Date Range", "Start date cannot be later than end date.");
-        return;
+    // If there are validation errors, show them and return
+    if (Object.keys(errors).length > 0) {
+      setValidationErrors(errors);
+      if (Platform.OS !== 'web') {
+        Alert.alert('Validation Error', 'Please fix the errors in the form.');
       }
+      return;
     }
 
     setSaving(true);
@@ -261,22 +290,35 @@ export default function ViewMedications() {
       const data = await res.json();
 
       if (!res.ok) {
-        Alert.alert("Error", data.message || "Failed to update medication");
+        const errorMessage = data.message || "Failed to update medication";
+        setSaveError(errorMessage);
+        if (Platform.OS !== 'web') {
+          Alert.alert("Error", errorMessage);
+        }
         setSaving(false);
         return;
       }
 
+      // Success
       setSaving(false);
+      setValidationErrors({});
+      setSaveError(null);
       
       // Immediately refresh the medications list (without showing loading spinner)
       await fetchMedications(false);
       
       // Close modal and show success
       closeEditModal();
-      Alert.alert("Success", "Medication updated successfully!");
+      if (Platform.OS !== 'web') {
+        Alert.alert("Success", "Medication updated successfully!");
+      }
     } catch (err: any) {
       console.error("Error updating medication:", err);
-      Alert.alert("Error", err.message || "Server error while saving.");
+      const errorMessage = err.message || "Could not connect to server. Please check your connection and try again.";
+      setSaveError(errorMessage);
+      if (Platform.OS !== 'web') {
+        Alert.alert("Error", errorMessage);
+      }
       setSaving(false);
     }
   };
@@ -557,26 +599,93 @@ export default function ViewMedications() {
                   nestedScrollEnabled={true}
                   bounces={true}
                 >
+                  {/* Error Banner */}
+                  {saveError && (
+                    <View className="mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
+                      <View className="flex-row items-start">
+                        <Ionicons name="alert-circle" size={20} color="#ef4444" style={{ marginRight: 8, marginTop: 2 }} />
+                        <Text className="text-red-700 dark:text-red-400 flex-1 text-sm font-medium">
+                          {saveError}
+                        </Text>
+                        <TouchableOpacity onPress={() => setSaveError(null)}>
+                          <Ionicons name="close" size={18} color="#ef4444" />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  )}
+
+                  {/* Validation Errors Banner */}
+                  {Object.keys(validationErrors).length > 0 && (
+                    <View className="mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
+                      <View className="flex-row items-start">
+                        <Ionicons name="alert-circle" size={20} color="#ef4444" style={{ marginRight: 8, marginTop: 2 }} />
+                        <View className="flex-1">
+                          <Text className="text-red-700 dark:text-red-400 text-sm font-semibold mb-1">
+                            Please fix the following errors:
+                          </Text>
+                          {Object.entries(validationErrors).map(([field, message]) => (
+                            <Text key={field} className="text-red-600 dark:text-red-400 text-sm">
+                              • {message}
+                            </Text>
+                          ))}
+                        </View>
+                        <TouchableOpacity onPress={() => setValidationErrors({})}>
+                          <Ionicons name="close" size={18} color="#ef4444" />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  )}
+
                 <View className="bg-gray-100 dark:bg-gray-800 p-5 rounded-2xl shadow">
-                  <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-2">Name *</Text>
+                  <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-2">
+                    Name <Text className="text-red-500">*</Text>
+                  </Text>
                   <TextInput
                     value={name}
-                    onChangeText={setName}
-                    className="bg-white dark:bg-gray-700 rounded-xl mt-1 px-4 py-3 text-gray-900 dark:text-white"
+                    onChangeText={(text) => {
+                      setName(text);
+                      if (validationErrors.name) {
+                        setValidationErrors({ ...validationErrors, name: '' });
+                      }
+                    }}
+                    className={`bg-white dark:bg-gray-700 rounded-xl mt-1 px-4 py-3 text-gray-900 dark:text-white border ${
+                      validationErrors.name 
+                        ? 'border-red-500 dark:border-red-500' 
+                        : 'border-gray-200 dark:border-gray-600'
+                    }`}
                     placeholder="Medication Name"
                     placeholderTextColor="#aaa"
                   />
+                  {validationErrors.name && (
+                    <Text className="text-red-500 text-xs mt-1 ml-1">
+                      {validationErrors.name}
+                    </Text>
+                  )}
 
                   <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4">
                     Dosage <Text className="text-red-500">*</Text>
                   </Text>
                   <TextInput
                     value={dosage}
-                    onChangeText={setDosage}
-                    className="bg-white dark:bg-gray-700 rounded-xl mt-1 px-4 py-3 text-gray-900 dark:text-white"
+                    onChangeText={(text) => {
+                      setDosage(text);
+                      if (validationErrors.dosage) {
+                        setValidationErrors({ ...validationErrors, dosage: '' });
+                      }
+                    }}
+                    className={`bg-white dark:bg-gray-700 rounded-xl mt-1 px-4 py-3 text-gray-900 dark:text-white border ${
+                      validationErrors.dosage 
+                        ? 'border-red-500 dark:border-red-500' 
+                        : 'border-gray-200 dark:border-gray-600'
+                    }`}
                     placeholder="e.g. 500mg"
                     placeholderTextColor="#aaa"
                   />
+                  {validationErrors.dosage && (
+                    <Text className="text-red-500 text-xs mt-1 ml-1">
+                      {validationErrors.dosage}
+                    </Text>
+                  )}
 
                   <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4">
                     Frequency (tap to select)
@@ -612,36 +721,87 @@ export default function ViewMedications() {
                   </Text>
                   <TextInput
                     value={scheduleText}
-                    onChangeText={setScheduleText}
-                    className="bg-white dark:bg-gray-700 rounded-xl mt-1 px-4 py-3 text-gray-900 dark:text-white"
+                    onChangeText={(text) => {
+                      setScheduleText(text);
+                      if (validationErrors.schedule) {
+                        setValidationErrors({ ...validationErrors, schedule: '' });
+                      }
+                    }}
+                    className={`bg-white dark:bg-gray-700 rounded-xl mt-1 px-4 py-3 text-gray-900 dark:text-white border ${
+                      validationErrors.schedule 
+                        ? 'border-red-500 dark:border-red-500' 
+                        : 'border-gray-200 dark:border-gray-600'
+                    }`}
                     placeholder="e.g. 08:00, 20:00"
                     placeholderTextColor="#aaa"
                   />
+                  {validationErrors.schedule && (
+                    <Text className="text-red-500 text-xs mt-1 ml-1">
+                      {validationErrors.schedule}
+                    </Text>
+                  )}
 
                   <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4">
                     Start Date <Text className="text-red-500">*</Text>
                   </Text>
-                  <TextInput
+                  <input
+                    type="date"
                     value={startDate}
-                    onChangeText={setStartDate}
-                    className="bg-white dark:bg-gray-700 rounded-xl mt-1 px-4 py-3 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-600"
-                    placeholder="YYYY-MM-DD"
-                    placeholderTextColor="#aaa"
-                    keyboardType="default"
-                    returnKeyType="next"
-                    blurOnSubmit={false}
+                    onChange={(e) => {
+                      setStartDate(e.target.value);
+                      if (validationErrors.startDate) {
+                        setValidationErrors({ ...validationErrors, startDate: '' });
+                      }
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      borderRadius: '12px',
+                      border: validationErrors.startDate 
+                        ? '2px solid #ef4444' 
+                        : '2px solid #e5e7eb',
+                      fontSize: '16px',
+                      backgroundColor: '#fff',
+                      color: '#111827',
+                      marginTop: '8px',
+                    }}
+                    className="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                   />
+                  {validationErrors.startDate && (
+                    <Text className="text-red-500 text-xs mt-1 ml-1">
+                      {validationErrors.startDate}
+                    </Text>
+                  )}
 
                   <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4">End Date</Text>
-                  <TextInput
+                  <input
+                    type="date"
                     value={endDate}
-                    onChangeText={setEndDate}
-                    className="bg-white dark:bg-gray-700 rounded-xl mt-1 px-4 py-3 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-600"
-                    placeholder="YYYY-MM-DD"
-                    placeholderTextColor="#aaa"
-                    keyboardType="default"
-                    returnKeyType="done"
+                    onChange={(e) => {
+                      setEndDate(e.target.value);
+                      if (validationErrors.endDate) {
+                        setValidationErrors({ ...validationErrors, endDate: '' });
+                      }
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      borderRadius: '12px',
+                      border: validationErrors.endDate 
+                        ? '2px solid #ef4444' 
+                        : '2px solid #e5e7eb',
+                      fontSize: '16px',
+                      backgroundColor: '#fff',
+                      color: '#111827',
+                      marginTop: '8px',
+                    }}
+                    className="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                   />
+                  {validationErrors.endDate && (
+                    <Text className="text-red-500 text-xs mt-1 ml-1">
+                      {validationErrors.endDate}
+                    </Text>
+                  )}
 
                   <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4">Instructions</Text>
                   <TextInput
@@ -733,25 +893,55 @@ export default function ViewMedications() {
                     bounces={true}
                   >
                   <View className="bg-gray-100 dark:bg-gray-800 p-5 rounded-2xl shadow">
-                    <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-2">Name *</Text>
+                    <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-2">
+                      Name <Text className="text-red-500">*</Text>
+                    </Text>
                     <TextInput
                       value={name}
-                      onChangeText={setName}
-                      className="bg-white dark:bg-gray-700 rounded-xl mt-1 px-4 py-3 text-gray-900 dark:text-white"
+                      onChangeText={(text) => {
+                        setName(text);
+                        if (validationErrors.name) {
+                          setValidationErrors({ ...validationErrors, name: '' });
+                        }
+                      }}
+                      className={`bg-white dark:bg-gray-700 rounded-xl mt-1 px-4 py-3 text-gray-900 dark:text-white border ${
+                        validationErrors.name 
+                          ? 'border-red-500 dark:border-red-500' 
+                          : 'border-gray-200 dark:border-gray-600'
+                      }`}
                       placeholder="Medication Name"
                       placeholderTextColor="#aaa"
                     />
+                    {validationErrors.name && (
+                      <Text className="text-red-500 text-xs mt-1 ml-1">
+                        {validationErrors.name}
+                      </Text>
+                    )}
 
                     <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4">
-                    Dosage <Text className="text-red-500">*</Text>
-                  </Text>
+                      Dosage <Text className="text-red-500">*</Text>
+                    </Text>
                     <TextInput
                       value={dosage}
-                      onChangeText={setDosage}
-                      className="bg-white dark:bg-gray-700 rounded-xl mt-1 px-4 py-3 text-gray-900 dark:text-white"
+                      onChangeText={(text) => {
+                        setDosage(text);
+                        if (validationErrors.dosage) {
+                          setValidationErrors({ ...validationErrors, dosage: '' });
+                        }
+                      }}
+                      className={`bg-white dark:bg-gray-700 rounded-xl mt-1 px-4 py-3 text-gray-900 dark:text-white border ${
+                        validationErrors.dosage 
+                          ? 'border-red-500 dark:border-red-500' 
+                          : 'border-gray-200 dark:border-gray-600'
+                      }`}
                       placeholder="e.g. 500mg"
                       placeholderTextColor="#aaa"
                     />
+                    {validationErrors.dosage && (
+                      <Text className="text-red-500 text-xs mt-1 ml-1">
+                        {validationErrors.dosage}
+                      </Text>
+                    )}
 
                     <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4">
                       Frequency (tap to select)
@@ -776,13 +966,27 @@ export default function ViewMedications() {
                     <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4">Schedule (time per line)</Text>
                     <TextInput
                       value={scheduleText}
-                      onChangeText={setScheduleText}
+                      onChangeText={(text) => {
+                        setScheduleText(text);
+                        if (validationErrors.schedule) {
+                          setValidationErrors({ ...validationErrors, schedule: '' });
+                        }
+                      }}
                       multiline
                       numberOfLines={3}
-                      className="bg-white dark:bg-gray-700 rounded-xl mt-1 px-4 py-3 text-gray-900 dark:text-white"
+                      className={`bg-white dark:bg-gray-700 rounded-xl mt-1 px-4 py-3 text-gray-900 dark:text-white border ${
+                        validationErrors.schedule 
+                          ? 'border-red-500 dark:border-red-500' 
+                          : 'border-gray-200 dark:border-gray-600'
+                      }`}
                       placeholder="e.g.\n08:00 AM\n08:00 PM"
                       placeholderTextColor="#aaa"
                     />
+                    {validationErrors.schedule && (
+                      <Text className="text-red-500 text-xs mt-1 ml-1">
+                        {validationErrors.schedule}
+                      </Text>
+                    )}
 
                     {/* Instructions */}
                     <Text className="text-gray-700 dark:text-gray-300 font-semibold mt-4">Instructions</Text>
@@ -798,15 +1002,26 @@ export default function ViewMedications() {
 
                     {/* Start/End Dates */}
                     <View className="mt-4">
-                      <Text className="text-gray-700 dark:text-gray-300 font-semibold">Start Date *</Text>
+                      <Text className="text-gray-700 dark:text-gray-300 font-semibold">
+                        Start Date <Text className="text-red-500">*</Text>
+                      </Text>
                       <TouchableOpacity
                         onPress={() => setShowStartPicker(true)}
-                        className="bg-white dark:bg-gray-700 rounded-xl mt-1 px-4 py-3 border border-gray-200 dark:border-gray-600"
+                        className={`bg-white dark:bg-gray-700 rounded-xl mt-1 px-4 py-3 border ${
+                          validationErrors.startDate 
+                            ? 'border-red-500 dark:border-red-500' 
+                            : 'border-gray-200 dark:border-gray-600'
+                        }`}
                       >
                         <Text className="text-gray-900 dark:text-white">
                           {startDate ? new Date(startDate).toLocaleDateString() : 'Select start date'}
                         </Text>
                       </TouchableOpacity>
+                      {validationErrors.startDate && (
+                        <Text className="text-red-500 text-xs mt-1 ml-1">
+                          {validationErrors.startDate}
+                        </Text>
+                      )}
                       {showStartPicker && (
                         <View>
                           {Platform.OS === 'ios' && (
@@ -820,6 +1035,9 @@ export default function ViewMedications() {
                               <TouchableOpacity
                                 onPress={() => {
                                   setShowStartPicker(false);
+                                  if (validationErrors.startDate && startDate) {
+                                    setValidationErrors({ ...validationErrors, startDate: '' });
+                                  }
                                 }}
                                 className="px-4 py-2 rounded-lg bg-blue-600"
                               >
@@ -837,6 +1055,9 @@ export default function ViewMedications() {
                               }
                               if (date) {
                                 setStartDate(date.toISOString().split('T')[0]);
+                                if (validationErrors.startDate) {
+                                  setValidationErrors({ ...validationErrors, startDate: '' });
+                                }
                               }
                             }}
                           />
@@ -848,12 +1069,21 @@ export default function ViewMedications() {
                       <Text className="text-gray-700 dark:text-gray-300 font-semibold">End Date</Text>
                       <TouchableOpacity
                         onPress={() => setShowEndPicker(true)}
-                        className="bg-white dark:bg-gray-700 rounded-xl mt-1 px-4 py-3 border border-gray-200 dark:border-gray-600"
+                        className={`bg-white dark:bg-gray-700 rounded-xl mt-1 px-4 py-3 border ${
+                          validationErrors.endDate 
+                            ? 'border-red-500 dark:border-red-500' 
+                            : 'border-gray-200 dark:border-gray-600'
+                        }`}
                       >
                         <Text className="text-gray-900 dark:text-white">
                           {endDate ? new Date(endDate).toLocaleDateString() : 'Select end date (optional)'}
                         </Text>
                       </TouchableOpacity>
+                      {validationErrors.endDate && (
+                        <Text className="text-red-500 text-xs mt-1 ml-1">
+                          {validationErrors.endDate}
+                        </Text>
+                      )}
                       {showEndPicker && (
                         <View>
                           {Platform.OS === 'ios' && (
@@ -867,6 +1097,9 @@ export default function ViewMedications() {
                               <TouchableOpacity
                                 onPress={() => {
                                   setShowEndPicker(false);
+                                  if (validationErrors.endDate && endDate) {
+                                    setValidationErrors({ ...validationErrors, endDate: '' });
+                                  }
                                 }}
                                 className="px-4 py-2 rounded-lg bg-blue-600"
                               >
@@ -884,6 +1117,9 @@ export default function ViewMedications() {
                               }
                               if (date) {
                                 setEndDate(date.toISOString().split('T')[0]);
+                                if (validationErrors.endDate) {
+                                  setValidationErrors({ ...validationErrors, endDate: '' });
+                                }
                               }
                             }}
                           />
