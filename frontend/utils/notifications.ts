@@ -41,17 +41,80 @@ export async function registerForPushNotificationsAsync() {
 // Store web alert timeouts for cleanup
 const webAlertTimeouts: Map<string, ReturnType<typeof setTimeout>> = new Map();
 
+type ScheduleEntry = { time: string; days?: string[] };
+type MedicationLike = {
+  _id: string;
+  name: string;
+  dosage: string;
+  frequency?: string;
+  startDate?: string;
+  endDate?: string;
+  schedule?: ScheduleEntry[];
+};
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+function toDateOrNull(value?: string) {
+  if (!value) return null;
+  const d = new Date(value);
+  // invalid date check
+  if (Number.isNaN(d.getTime())) return null;
+  return d;
+}
+
+function startOfDay(d: Date) {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+
+function dateKey(d: Date) {
+  return d.toISOString().split("T")[0];
+}
+
+function weekdayName(d: Date) {
+  return d.toLocaleDateString("en-US", { weekday: "long" });
+}
+
+function isDailyFrequency(freq?: string) {
+  const f = (freq || "").toLowerCase();
+  return (
+    f === "once-daily" ||
+    f === "twice-daily" ||
+    f === "three-times-daily" ||
+    f === "four-times-daily"
+  );
+}
+
+function scheduleEntryAppliesOnDate(
+  med: MedicationLike,
+  entry: ScheduleEntry,
+  doseDate: Date
+) {
+  // If days provided, respect them.
+  const days = entry.days || [];
+  if (days.length > 0) {
+    return days.includes(weekdayName(doseDate));
+  }
+
+  // If no days provided:
+  // - For daily frequencies, treat as "every day"
+  // - For other frequencies, we cannot infer → don't schedule.
+  return isDailyFrequency(med.frequency);
+}
+
 // Schedule medication reminder notification 1 day before
 export async function scheduleMedicationReminder(
+  notificationId: string,
   medicationId: string,
   medicationName: string,
   dosage: string,
-  scheduledDate: Date,
+  scheduledDoseDate: Date,
   scheduledTime: string
 ) {
   if (Platform.OS === "web") {
     // For web, use browser alerts
-    const reminderDate = new Date(scheduledDate);
+    const reminderDate = new Date(scheduledDoseDate);
     const [hours, minutes] = scheduledTime.split(":").map(Number);
     reminderDate.setHours(hours, minutes, 0, 0);
     reminderDate.setDate(reminderDate.getDate() - 1); // 1 day before
@@ -59,23 +122,23 @@ export async function scheduleMedicationReminder(
     const now = new Date();
     const timeUntilReminder = reminderDate.getTime() - now.getTime();
 
-    // Clear existing timeout for this medication
-    const existingTimeout = webAlertTimeouts.get(medicationId);
+    // Clear existing timeout for this specific reminder
+    const existingTimeout = webAlertTimeouts.get(notificationId);
     if (existingTimeout) {
       clearTimeout(existingTimeout);
     }
 
-    if (timeUntilReminder > 0 && timeUntilReminder < 7 * 24 * 60 * 60 * 1000) {
-      // Only schedule if within 7 days (to avoid very long timeouts)
+    if (timeUntilReminder > 0 && timeUntilReminder < 31 * 24 * 60 * 60 * 1000) {
+      // Only schedule if within ~30 days (avoid very long timeouts)
       const timeout = setTimeout(() => {
         Alert.alert(
           "Medication Reminder",
           `Don't forget: ${medicationName} (${dosage}) is scheduled for tomorrow at ${scheduledTime}`,
           [{ text: "OK" }]
         );
-        webAlertTimeouts.delete(medicationId);
+        webAlertTimeouts.delete(notificationId);
       }, timeUntilReminder);
-      webAlertTimeouts.set(medicationId, timeout);
+      webAlertTimeouts.set(notificationId, timeout);
     }
     return;
   }
@@ -96,27 +159,16 @@ export async function scheduleMedicationReminder(
     }
 
     // Calculate reminder time (1 day before scheduled time)
-    const reminderDate = new Date(scheduledDate);
+    const reminderDate = new Date(scheduledDoseDate);
     const [hours, minutes] = scheduledTime.split(":").map(Number);
     reminderDate.setHours(hours, minutes, 0, 0);
     reminderDate.setDate(reminderDate.getDate() - 1); // 1 day before
 
     const now = new Date();
-    if (reminderDate <= now) {
-      // If reminder time has passed, schedule for next occurrence
-      reminderDate.setDate(reminderDate.getDate() + 7); // Next week
-    }
-
-    // Cancel any existing notification for this medication
-    await Notifications.cancelScheduledNotificationAsync(medicationId);
-
-    // Calculate seconds until reminder
-    const secondsUntilReminder = Math.floor((reminderDate.getTime() - now.getTime()) / 1000);
-    
-    if (secondsUntilReminder > 0) {
-      // Schedule the notification using date trigger
+    if (reminderDate > now) {
       await Notifications.scheduleNotificationAsync({
-        identifier: medicationId,
+        // We pass an identifier if supported; otherwise expo generates one.
+        identifier: notificationId,
         content: {
           title: "Medication Reminder",
           body: `Don't forget: ${medicationName} (${dosage}) is scheduled for tomorrow at ${scheduledTime}`,
@@ -126,6 +178,7 @@ export async function scheduleMedicationReminder(
             medicationName,
             dosage,
             scheduledTime,
+            scheduledDoseDate: scheduledDoseDate.toISOString(),
           },
         },
         trigger: reminderDate as any, // expo-notifications accepts Date directly
@@ -169,29 +222,68 @@ export async function cancelAllMedicationReminders() {
 }
 
 // Schedule reminders for all upcoming medications
-export async function scheduleAllMedicationReminders(medications: any[]) {
+export async function scheduleAllMedicationReminders(medications: MedicationLike[]) {
   // Cancel existing reminders first
   await cancelAllMedicationReminders();
 
   const now = new Date();
-  const tomorrow = new Date(now);
-  tomorrow.setDate(tomorrow.getDate() + 1);
+  const todayStart = startOfDay(now);
+  const tomorrowStart = new Date(todayStart.getTime() + MS_PER_DAY);
+
+  // We can't reliably schedule an unbounded number of notifications on-device.
+  // So we schedule for a rolling window ahead and re-run whenever meds refresh / app opens.
+  const WINDOW_DAYS_AHEAD = 30;
+  const windowEnd = new Date(todayStart.getTime() + WINDOW_DAYS_AHEAD * MS_PER_DAY);
 
   for (const med of medications) {
-    if (!med.schedule || med.schedule.length === 0) continue;
-    if (med.endDate && new Date(med.endDate) < tomorrow) continue;
-    if (med.startDate && new Date(med.startDate) > tomorrow) continue;
+    const schedule = med.schedule || [];
+    // If no schedule is mentioned, don't send reminders.
+    if (schedule.length === 0) continue;
 
-    const tomorrowDayName = tomorrow.toLocaleDateString("en-US", { weekday: "long" });
+    // Require at least one valid time; if schedule entries have no time, skip.
+    const hasAnyTime = schedule.some((s) => typeof s.time === "string" && s.time.includes(":"));
+    if (!hasAnyTime) continue;
 
-    for (const schedule of med.schedule) {
-      if (schedule.days.includes(tomorrowDayName)) {
+    const start = toDateOrNull(med.startDate) || null;
+    const end = toDateOrNull(med.endDate) || null;
+
+    // Dose dates start from tomorrow (because reminder is 1 day before dose time).
+    let doseDateStart = tomorrowStart;
+    if (start) {
+      const startDay = startOfDay(start);
+      if (startDay > doseDateStart) doseDateStart = startDay;
+    }
+
+    let doseDateEnd = windowEnd;
+    if (end) {
+      const endDay = startOfDay(end);
+      if (endDay < doseDateEnd) doseDateEnd = endDay;
+    }
+
+    // If out of range, skip.
+    if (doseDateStart > doseDateEnd) continue;
+
+    // Iterate each day in the range and schedule reminders based on schedule/frequency.
+    for (
+      let d = new Date(doseDateStart);
+      d <= doseDateEnd;
+      d = new Date(d.getTime() + MS_PER_DAY)
+    ) {
+      // For once-daily: send daily between start/end at the given schedule time.
+      // If multiple schedule times exist, we schedule all of them (covers multi-dose cases too).
+      for (const entry of schedule) {
+        if (!entry?.time || typeof entry.time !== "string" || !entry.time.includes(":"))
+          continue;
+        if (!scheduleEntryAppliesOnDate(med, entry, d)) continue;
+
+        const id = `${med._id}:${dateKey(d)}:${entry.time}`;
         await scheduleMedicationReminder(
+          id,
           med._id,
           med.name,
           med.dosage,
-          tomorrow,
-          schedule.time
+          d,
+          entry.time
         );
       }
     }
