@@ -4,10 +4,8 @@ import {
   View,
   Text,
   ScrollView,
-  TouchableOpacity,
   ActivityIndicator,
 } from 'react-native';
-import { router } from 'expo-router';
 
 interface ProviderItem {
   _id: string;
@@ -45,20 +43,9 @@ export default function ProvidersCard({ providers, loading, error }: Props) {
       ) : (
         <ScrollView className="max-h-[260px]">
           {providers.map((p) => (
-            <TouchableOpacity
+            <View
               key={p._id}
               className="bg-gray-200 dark:bg-gray-700 p-4 mb-3 rounded-xl shadow"
-              onPress={() =>
-                router.push({
-                  pathname: '/(patient)/ViewProviderInformation',
-                  params: {
-                    id: p._id,
-                    name: p.name,
-                    email: p.email,
-                    phone: p.phoneNumber,
-                  },
-                })
-              }
             >
               <Text className="text-lg font-semibold text-gray-900 dark:text-white">
                 {p.name}
@@ -69,7 +56,7 @@ export default function ProvidersCard({ providers, loading, error }: Props) {
               <Text className="text-gray-700 dark:text-gray-300">
                 Phone: {p.phoneNumber || 'N/A'}
               </Text>
-            </TouchableOpacity>
+            </View>
           ))}
         </ScrollView>
       )}
