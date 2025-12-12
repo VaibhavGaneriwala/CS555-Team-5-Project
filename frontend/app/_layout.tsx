@@ -118,6 +118,9 @@ function RootLayoutNav() {
           >
             <Stack.Screen name="index" />
             <Stack.Screen name="modal" options={{ presentation: "modal" }} />
+            <Stack.Screen name="home" options={{headerShown: false}}/>
+            <Stack.Screen name="about" />
+            <Stack.Screen name="login" options={{headerShown: false}}/>
             <Stack.Screen name="(admin)" />
             <Stack.Screen name="(patient)" />
             <Stack.Screen name="(provider)" />
