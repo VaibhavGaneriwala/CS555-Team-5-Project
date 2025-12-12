@@ -1,10 +1,12 @@
-# 💊 Medication Adherence Tracker (Team 5 — CS555 Project)
+# 💊 Medication Adherence Tracker (Team 5 — CS 555 Project)
 
 ## 📌 Project Overview
 **Medication Adherence Tracker (MAT)** is a cross-platform health application that helps patients track, manage, and adhere to their prescribed medications.
 The system delivers automated reminders, allows medication **logging and monitoring**, and ensures **secure data management** through a robust **Node.js + MongoDB** backend.
 
 MAT promotes improved patient outcomes through timely notifications and intuitive medication tracking.
+
+
 
 ## 🚀 Key Features
 - 🔐 **User Authentication:** Secure registration and login using JSON Web Tokens (JWT).  
@@ -15,12 +17,11 @@ MAT promotes improved patient outcomes through timely notifications and intuitiv
 - 🧩 **RESTful APIs:** Modular Express controllers and routes for users, medications, and adherence logs.  
 - 💬 **Team Collaboration:** Managed via GitHub, Slack, and Jira for continuous integration and Agile workflow.  
 
+
+
 ## 🧠 System Architecture
 ```bash
-Backend (NodeJS)
-│
-▼
-Frontend (React Native)
+Frontend (React Native / Flutter)
 │
 ▼
 Express.js API
@@ -32,15 +33,18 @@ MongoDB Services
 └── Cloud Storage
 ```
 
+
 ## 🛠️ Technologies Used
 | Category | Tools & Technologies |
 |-----------|----------------------|
-| **Backend** | Node.js, Express.js, Rest API |
+| **Backend** | Node.js, Express.js |
 | **Database & Cloud** | MongoDB |
-| **Version Control** | Git, GitHub (Team Repository) |
-| **Project Management** | Jira (User Stories, Burndown, Velocity) |
-| **Communication** | Discord, Slack (Team and Instructor Updates) |
-| **Languages** | JavaScript |
+| **Version Control** | GitHub (Team Repository) |
+| **Project Management** | Jira / Excel (User Stories, Burndown, Velocity) |
+| **Communication** | Slack (Team & Instructor Updates) |
+| **Languages** | JavaScript, JSON, REST API |
+
+
 
 ## ⚙️ How It Works
 1. 🧾 **User Registration & Login:** Users authenticate securely.  
@@ -48,6 +52,7 @@ MongoDB Services
 3. ⏰ **Reminders Triggered:** System sends alerts at the scheduled times.  
 4. 📊 **Adherence Monitoring:** Tracks intake behavior and displays completion stats.  
 5. ☁️ **Data Stored in Firestore:** Ensures secure, real-time cloud storage for all records.
+
 
 ## 🧩 Folder Structure
 ```bash
@@ -71,8 +76,7 @@ Medication-Adherence-Tracker/
 │   │   ├── medications.js
 │   │   └── adherence.js
 │   ├── utils/
-│   │   ├── reminderScheduler.js
-│   │   ├── validation.js
+│   │   └── reminderScheduler.js
 │   ├── server.js
 │   └── package.json
 │
@@ -115,11 +119,23 @@ Medication-Adherence-Tracker/
 ✅ Slack communication logs with demo link  
 
 ## 📊 Sprint 2 Deliverables
-✅ Migrated backend to MongoDB
+✅ Migrated backend to MongoDB  
 ✅ Implemented automated reminder scheduler (node-cron)
-✅ Integrated frontend notification system (Expo Notifications)
+✅ Integrated frontend notification system (Expo Notifications) 
 ✅ Role-based access for admin & provider
 ✅ Continuous integration with GitHub actions and manual testing
+✅ Slack communication logs with demo link  
+
+
+## 📊 Sprint 3 Deliverables
+✅ Provider reports and adherence trend analytics implemented  
+✅ Patient dose logging completed and integrated with backend  
+✅ iOS prototype demonstrated with updated patient and provider flows  
+✅ All backend tests passed (controllers and models)  
+✅ GitHub Actions CI runs verified  
+✅ Jira board, burnup chart, and velocity report updated 
+
+
 
 ## 🧮 Installation & Setup
 ### 🔧 Prerequisites
@@ -137,14 +153,20 @@ Medication-Adherence-Tracker/
 # Clone the repository
 git clone https://github.com/ParthGadekar0631/Medication-Adherence-Tracker.git
 ```
-
 ```bash
 # Navigate to backend
 cd backend
-npm install
-node server.js
 ```
 
+```bash
+# Install dependencies
+npm install
+```
+
+```bash
+# Run the server
+node server.js
+```
 ## 📱 Frontend Setup
 ```bash
 cd frontend
@@ -165,18 +187,21 @@ npx expo start -c
 
 | Name | Role | Responsibility |
 |------|------|----------------|
-| **Parth Gadekar** | Backend Developer | API Development |
-| **Vaibhav Ganeriwala** | Backend Developer | Database Engineer | Scrum Master
-| **Jared Simonetti** | Frontend Developer | UI/UX and Mobile App |
-| **Daniel Storms** | Frontend Developer | Backend Developer |
+| **Parth Gadekar** | Backend Developer | Firebase Integration, API Development |
+| **Vaibhav Ganeriwala** | Database Engineer | Data Schema & Firestore Design |
+| **Daniel Storms** | Frontend Developer | UI/UX and Mobile App |
+| **Jared Simonetti** | Scrum Master | Jira, Sprint Management, Review |
+
 
 ## 🧭 Agile Workflow Tools
 
 - **Jira:** Sprint planning, story tracking, burndown chart  
-- **Slack:** Team communication, sprint demos  
+- **Slack:** Daily team communication, sprint demos  
 - **GitHub:** Version control, CI/CD integration  
 - **Confluence / Docs:** Sprint reviews and retrospectives  
 
 ## 📄 License
 
 This project is released under the **MIT License** — free to use, modify, and distribute.
+
+ 

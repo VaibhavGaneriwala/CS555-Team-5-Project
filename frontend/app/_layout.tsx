@@ -1,37 +1,27 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { DarkTheme, DefaultTheme, ThemeProvider as NavigationThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
-import * as Notifications from 'expo-notifications';
 import * as SplashScreen from 'expo-splash-screen';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import {
   View,
-  useColorScheme as rnUseColorScheme,
   Platform,
   StatusBar,
 } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+
 import 'react-native-reanimated';
 import '@/global.css';
 
 import ThemeToggle from '@/components/ThemeToggle';
 
-// ✅ Optional: import for Android navigation bar color control
+// NativeWind (v4)
+import { useColorScheme as useNativeWindColorScheme } from "nativewind";
+
+// Android UI control
 import * as SystemUI from 'expo-system-ui';
 import * as NavigationBar from 'expo-navigation-bar';
-
-// ✅ Global notification handler
-Notifications.setNotificationHandler({
-  handleNotification: async (notification) => {
-    return {
-      shouldShowAlert: true,
-      shouldPlaySound: true,
-      shouldSetBadge: true,
-      shouldShowBanner: true,
-      shouldShowList: true,
-    };
-  },
-});
 
 export { ErrorBoundary } from 'expo-router';
 
@@ -39,9 +29,12 @@ export const unstable_settings = {
   initialRouteName: 'index',
 };
 
-// Prevent splash screen from auto-hiding
+// Keep splash screen visible until fonts loaded
 SplashScreen.preventAutoHideAsync();
 
+// ======================================================
+// ROOT: Load fonts, wrap with NativeWind theme auto-handler
+// ======================================================
 export default function RootLayout() {
   const [loaded, error] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
@@ -53,88 +46,91 @@ export default function RootLayout() {
   }, [error]);
 
   useEffect(() => {
-    if (loaded) {
-      SplashScreen.hideAsync();
-    }
+    if (loaded) SplashScreen.hideAsync();
   }, [loaded]);
 
   if (!loaded) return null;
 
+  // NO ThemeProvider needed for NativeWind v4
   return <RootLayoutNav />;
 }
 
+// ======================================================
+// MAIN NAV + UI WRAPPER WITH NativeWind THEME
+// ======================================================
 function RootLayoutNav() {
-  const systemScheme = rnUseColorScheme();
-  const [manualTheme, setManualTheme] = useState<'light' | 'dark' | null>(null);
+  const { colorScheme } = useNativeWindColorScheme();
+  const isDark = colorScheme === "dark";
 
-  const handleThemeChange = (newTheme: 'light' | 'dark') => {
-    setManualTheme(newTheme);
-  };
-
-  const effectiveTheme = manualTheme || systemScheme || 'light';
-  const isDark = effectiveTheme === 'dark';
-
-  // ✅ Apply web theme logic
+  // Setup notification handler (only on native platforms, not web)
   useEffect(() => {
-    if (Platform.OS === 'web') {
-      const root = document.documentElement;
-      root.setAttribute('data-theme', effectiveTheme);
-      root.classList.toggle('dark', isDark);
+    if (Platform.OS !== "web") {
+      // Dynamically import to avoid SSR issues
+      import('expo-notifications').then((NotificationsModule) => {
+        // expo-notifications uses namespace exports, access setNotificationHandler directly
+        if (NotificationsModule.setNotificationHandler) {
+          NotificationsModule.setNotificationHandler({
+            handleNotification: async () => ({
+              shouldShowAlert: true,
+              shouldPlaySound: true,
+              shouldSetBadge: true,
+              shouldShowBanner: true,
+              shouldShowList: true,
+            }),
+          });
+        }
+      }).catch((err) => {
+        console.warn('Failed to setup notifications:', err);
+      });
     }
-  }, [effectiveTheme]);
+  }, []);
 
-  // ✅ Apply Android/iOS system UI theme effects
+  // Sync system UI: status bar + Android nav
   useEffect(() => {
-    if (Platform.OS !== 'web') {
-      // Update status bar for iOS and Android
-      StatusBar.setBarStyle(isDark ? 'light-content' : 'dark-content', true);
+    StatusBar.setBarStyle(isDark ? "light-content" : "dark-content");
 
-      if (Platform.OS === 'android') {
-        // Update navigation + system bar colors for Android
-        SystemUI.setBackgroundColorAsync(isDark ? '#0d1117' : '#ffffff');
-        NavigationBar.setBackgroundColorAsync(isDark ? '#0d1117' : '#ffffff');
-        NavigationBar.setButtonStyleAsync(isDark ? 'light' : 'dark');
-      }
+    if (Platform.OS === "android") {
+      const bg = isDark ? "#0d1117" : "#ffffff";
+      SystemUI.setBackgroundColorAsync(bg);
+      NavigationBar.setBackgroundColorAsync(bg);
+      NavigationBar.setButtonStyleAsync(isDark ? "light" : "dark");
     }
-  }, [effectiveTheme]);
+  }, [isDark]);
 
   return (
-    <ThemeProvider value={isDark ? DarkTheme : DefaultTheme}>
-      <View
-        className={`flex-1 transition-colors duration-300 ${
-          isDark ? 'bg-[#0d1117]' : 'bg-white'
-        }`}
-      >
-        <StatusBar
-          animated
-          backgroundColor={isDark ? '#0d1117' : '#ffffff'}
-          barStyle={isDark ? 'light-content' : 'dark-content'}
-        />
-
-        <Stack
-          screenOptions={{
-            headerShown: false,
-          }}
+    <SafeAreaProvider>
+      <NavigationThemeProvider value={isDark ? DarkTheme : DefaultTheme}>
+        <View
+          className={`flex-1 transition-colors duration-300 ${
+            isDark ? "bg-[#0d1117]" : "bg-white"
+          }`}
         >
-          {/* 🔐 Root + Modal Routes */}
-          <Stack.Screen name="index" />
-          <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+          <StatusBar
+            animated
+            backgroundColor={isDark ? "#0d1117" : "#ffffff"}
+            barStyle={isDark ? "light-content" : "dark-content"}
+          />
 
-          {/* 👑 Admin Routes */}
-          <Stack.Screen name="(admin)" options={{ headerShown: false }} />
+          <Stack
+            screenOptions={{
+              headerShown: false,
+            }}
+          >
+            <Stack.Screen name="index" />
+            <Stack.Screen name="modal" options={{ presentation: "modal" }} />
+            <Stack.Screen name="home" options={{headerShown: false}}/>
+            <Stack.Screen name="about" />
+            <Stack.Screen name="login" options={{headerShown: false}}/>
+            <Stack.Screen name="(admin)" />
+            <Stack.Screen name="(patient)" />
+            <Stack.Screen name="(provider)" />
+          </Stack>
 
-          {/* 💊 Patient Routes */}
-          <Stack.Screen name="(patient)" options={{ headerShown: false }} />
-
-          {/* 🩺 Provider Routes */}
-          <Stack.Screen name="(provider)" options={{ headerShown: false }} />
-        </Stack>
-
-        {/* 🌙 Floating Theme Toggle */}
-        <View className="absolute bottom-8 right-8">
-          <ThemeToggle onThemeChange={handleThemeChange} />
+          <View className="absolute bottom-8 right-8">
+            <ThemeToggle />
+          </View>
         </View>
-      </View>
-    </ThemeProvider>
+      </NavigationThemeProvider>
+    </SafeAreaProvider>
   );
 }

@@ -246,11 +246,12 @@ describe('Auth Controller', () => {
             await getMe(req, res);
 
             expect(res.status).toHaveBeenCalledWith(200);
-            expect(res.json).toHaveBeenCalledWith({
-                    name: 'John Doe',
+            expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+                    firstName: 'John',
+                    lastName: 'Doe',
                     email: 'testuser@gmail.com',
                     role: 'patient'
-                });
+                }));
             }),
             // it should return 401 if token is missing
             it('should return 401 if no token is provided', async () => {

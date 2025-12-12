@@ -4,7 +4,6 @@ const User = require('../models/User');
 
 // This job runs every minute for demo; change to '*/10 * * * *' to run every 10 min
 cron.schedule('* * * * *', async () => {
-  console.log('⏰ Running reminder scheduler...');
   try {
     const now = new Date();
     const medications = await Medication.find({

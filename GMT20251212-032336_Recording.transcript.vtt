@@ -1,0 +1,490 @@
+WEBVTT
+
+1
+00:00:00.200 --> 00:00:01.460
+Daniel S: Just click count.
+
+2
+00:00:03.520 --> 00:00:14.340
+Daniel S: Welcome to our final project demo. We are Team 5 for CS555, and this is our project. It is the Medication Adherence Tracker app.
+
+3
+00:00:14.340 --> 00:00:39.160
+Daniel S: So, just to give a little bit of background, our goal for this app was to create a functional medication tracker that works for both patients and providers. So, in order to achieve this goal, we had to think not only about the user experience, but also the functionality from the provider's perspective. And so, in doing so, this involved the creation and addition of a number of administrative features, while still aiming to provide a functional and effective app for patients to track their medications and their adherence
+
+4
+00:00:39.160 --> 00:00:39.960
+Daniel S: to them.
+
+5
+00:00:40.020 --> 00:01:03.799
+Daniel S: From a provider's perspective, we aim to allow them to view their patient's adherence through a variety of statistics, including graphic visuals. And finally, we aim to improve our own experience through the implementation of our admin portal, which allows us to easily manage and adjust our database variables and schema as necessary. Now, to begin the user experience, they are greeted with the following landing page with some information about our app and the various features it provides.
+
+6
+00:01:03.800 --> 00:01:07.779
+Daniel S: So, if you scroll down, you can see a little bit about the application itself.
+
+7
+00:01:07.920 --> 00:01:23.339
+Daniel S: So, the Medication Adherence Tracker, is a comprehensive Medicare solution designed to improve the patient engagement and support clinical decision making. We have a little bit about our core capabilities for the patient and for providers as well.
+
+8
+00:01:23.390 --> 00:01:31.969
+Daniel S: And if you scroll down a little bit further, you see more information about who it's developed by, so the four of us. And now, going back to the top of the page.
+
+9
+00:01:32.410 --> 00:01:42.529
+Daniel S: You can see that the user is allowed to log in, so if we can go ahead and attempt to log in and see if we have not yet created an account, we can go ahead and register.
+
+10
+00:01:42.580 --> 00:01:53.100
+Daniel S: So, let's see, if we try to log in, and we put in the wrong password, for example, we will be prompted to submit a different username and password, and that this one is invalid.
+
+11
+00:01:54.360 --> 00:02:01.760
+Daniel S: So there you go. And then, if we have yet to create an account, we can go and click the sign up button below and create our account.
+
+12
+00:02:02.220 --> 00:02:21.039
+Daniel S: So, as you can see, there's a lot of information to fill in, but essentially all this information gets validated, including, you know, having certain password requirements, including length and numbers and special characters, ensuring that the phone number is valid, being able to select your date of birth from a calendar, your gender, and including your address as well.
+
+13
+00:02:21.160 --> 00:02:31.149
+Daniel S: Selecting your state from a predefined list, and your zip code. So this is all information necessary, in order to create your account. So going back to the sign-in page.
+
+14
+00:02:31.710 --> 00:02:40.029
+Daniel S: We can go ahead and sign in successfully as a patient, and get into the patient portal to show a little bit more about that.
+
+15
+00:02:49.020 --> 00:02:56.010
+Daniel S: There you see another example of invalid credentials, but now, once we sign in, we are at the patient dashboard.
+
+16
+00:03:00.910 --> 00:03:05.849
+Parth Yashwant Gadekar: I'll take one from here, and I'll begin by walking through the patient side of our application.
+
+17
+00:03:05.880 --> 00:03:21.369
+Parth Yashwant Gadekar: Here, a patient logs in using their registered credential, as shown before. Authentication is handled securely by a backend, and once verified, the patient is taken directly to that dashboard. This is the dashboard of the patient, where you can see there is an option
+
+18
+00:03:21.370 --> 00:03:30.580
+Parth Yashwant Gadekar: Of medication calendar, where the patient can go and see, their medications as per the dates, what all medications are
+
+19
+00:03:30.650 --> 00:03:39.270
+Parth Yashwant Gadekar: To be taken, and they also have an option to log their medications. Right now, as you can see, these are the past medic… These are the
+
+20
+00:03:41.030 --> 00:03:46.790
+Parth Yashwant Gadekar: past medications for this particular patient, and he's… since he has already logged them, you can
+
+21
+00:03:46.960 --> 00:03:51.870
+Parth Yashwant Gadekar: Clearly see when… at what time they were logged, and what medication was logged.
+
+22
+00:03:52.520 --> 00:03:54.290
+Parth Yashwant Gadekar: Other than that…
+
+23
+00:03:55.670 --> 00:04:09.650
+Parth Yashwant Gadekar: there is another feature, as the special feature that we used of, the Medical Assistant AI, or Med Assist AI, where the patient can conversate with the, chatbot or the AI bot, where he can ask
+
+24
+00:04:09.650 --> 00:04:24.800
+Parth Yashwant Gadekar: him all kind of guidance regarding his medication or whatever situation or medical condition he's facing. For example, as you can see, I mentioned I am not feeling well, and there was its response when I say I'm having a fever.
+
+25
+00:04:27.920 --> 00:04:36.849
+Parth Yashwant Gadekar: The AI will, give out a response. We'll try another one. We can write what kind of medications we are taking.
+
+26
+00:04:38.030 --> 00:04:39.970
+Parth Yashwant Gadekar: what MedScript,
+
+27
+00:04:43.690 --> 00:04:53.849
+Parth Yashwant Gadekar: So when I say I'm taking Dysprin, it will give out, the details about the medication, whether you should take them or not, or what kind of,
+
+28
+00:04:54.590 --> 00:04:59.320
+Parth Yashwant Gadekar: steps, or what kind of steps you need to follow. So that's the special feature.
+
+29
+00:04:59.780 --> 00:05:09.889
+Parth Yashwant Gadekar: Apart from that, we have the statistics, where you can see the adherence rate for the patient. Adherence rate is basically, has the patient taken the medication on time or not?
+
+30
+00:05:09.890 --> 00:05:20.570
+Parth Yashwant Gadekar: Then, what are, the total number of medication the patient is assigned to, number of doses the patient has taken, how many doses the patient has missed, and how many logs the patient has made.
+
+31
+00:05:20.670 --> 00:05:30.590
+Parth Yashwant Gadekar: So, this person has a 100% adherence rate. He's on 2 types of medications and have already taken 10 doses. He has not missed a single dose.
+
+32
+00:05:30.640 --> 00:05:43.310
+Parth Yashwant Gadekar: Apart from that, you can see the patient details, where the patient is allowed to make changes only to the phone number and address, and not to his email ID, or role, or his name, due to legal reasons.
+
+33
+00:05:44.680 --> 00:05:51.749
+Parth Yashwant Gadekar: If he tries to leave any kind of important, fields blank, there will be a validation error.
+
+34
+00:05:51.880 --> 00:05:54.060
+Parth Yashwant Gadekar: The sales is required.
+
+35
+00:05:54.950 --> 00:06:01.539
+Parth Yashwant Gadekar: The… then you can see the patient is able to see the provider, who the provider is.
+
+36
+00:06:01.620 --> 00:06:08.700
+Parth Yashwant Gadekar: And the patient has… we have implemented another feature of upcoming medications and notifications.
+
+37
+00:06:08.700 --> 00:06:22.369
+Parth Yashwant Gadekar: So, the patient is able to see what all medications he are in line, and also would be getting a notification pop-up before the medication time. So, say, 20 minutes before, depending on what the patient has
+
+38
+00:06:22.370 --> 00:06:30.489
+Parth Yashwant Gadekar: Chose for. Along with that, also, we have the view dosage log, so he can view the last 7 days, dosage log.
+
+39
+00:06:30.810 --> 00:06:39.350
+Parth Yashwant Gadekar: And can keep a track of it. So this is our patient site. Now, I would like Jared to explain the provider's dashboard.
+
+40
+00:06:42.510 --> 00:06:50.089
+Jared Simonetti: I'll happily go into the process that a, provider has in, utilizing this application.
+
+41
+00:06:50.380 --> 00:07:02.970
+Jared Simonetti: So, first, you'll, of course, put in your relevant provider information. If you're a registered provider, you can have your email and your corresponding password that you'll be plugging in after you've registered for the app.
+
+42
+00:07:02.970 --> 00:07:14.880
+Jared Simonetti: So, here is the dashboard, this is what you see as soon as you land into the page, and you have access to all the information regarding your patients, and you're able to review the relevant reports for those patients.
+
+43
+00:07:14.880 --> 00:07:26.810
+Jared Simonetti: So to start off, we'll look at the, the homepage, what the provider looks at on the baseline statistics here. So you can see the total number of patients you have, the average adherence of those patients.
+
+44
+00:07:26.810 --> 00:07:35.330
+Jared Simonetti: The total number of medications, those patients are taking, as well as the recent logs that have been marked down by those patients.
+
+45
+00:07:35.330 --> 00:07:47.729
+Jared Simonetti: You can see and edit your own personal information through this widget right here, which you can modify your name, email, role, contact information, and otherwise.
+
+46
+00:07:48.680 --> 00:07:49.679
+Jared Simonetti: In the app?
+
+47
+00:07:49.860 --> 00:08:01.989
+Jared Simonetti: Additionally, you can click over into the View Patients tab. This is where you are going to be doing the majority of your management of the application, of the patients that you have been assigned.
+
+48
+00:08:02.030 --> 00:08:19.009
+Jared Simonetti: And from here, we can first look into the add medication feature. So this is one of the most important things that a provider is able to do, which allows them to create medications which they will then assign to each of their patients, respectively. So, to start off, let's just do an example medication. Let's do Advil.
+
+49
+00:08:19.220 --> 00:08:24.140
+Jared Simonetti: And we will be, prescribing, 500 milligrams.
+
+50
+00:08:24.280 --> 00:08:32.560
+Jared Simonetti: a relatively strong dose, or an average dose that a patient will be taking, and at the bare minimum of credentials, let's just do the start date, let's make it…
+
+51
+00:08:33.710 --> 00:08:35.669
+Jared Simonetti: Let's go up here.
+
+52
+00:08:36.620 --> 00:08:37.600
+Jared Simonetti: I'm sorry?
+
+53
+00:08:39.380 --> 00:08:40.490
+Jared Simonetti: One moment.
+
+54
+00:08:43.429 --> 00:08:50.209
+Jared Simonetti: Let's make it over in… Sorry, this is cycling through. Let's just create the medication from here.
+
+55
+00:08:51.180 --> 00:09:11.020
+Jared Simonetti: Alright, now that we've successfully created a medication, we can go into the medications view and see our new medication alongside the other ones that have been created. So, first we have our once daily, which is the default it went to, since we did not provide that information. And then we have our other medications, a test medication, and lisinopril.
+
+56
+00:09:11.320 --> 00:09:19.009
+Jared Simonetti: We can now go back to… and we can edit these medication details as we see fit. So, for example, let's change this test medication to…
+
+57
+00:09:19.150 --> 00:09:22.110
+Jared Simonetti: Acetaminophen.
+
+58
+00:09:26.780 --> 00:09:30.839
+Jared Simonetti: And let's leave the dosage, let's leave everything as is, and we can view the changes.
+
+59
+00:09:31.060 --> 00:09:32.420
+Jared Simonetti: Directly in our list.
+
+60
+00:09:32.990 --> 00:09:36.370
+Jared Simonetti: Change from test to acetaminophen. Spelling unknown.
+
+61
+00:09:37.450 --> 00:09:44.440
+Jared Simonetti: Back to the patient view, we can look at the reports of each of our patients. So for this one, we'll be looking at Robert, Garcia.
+
+62
+00:09:44.710 --> 00:09:50.640
+Jared Simonetti: We can see the last 30 days of their adherence, and we can see their adherence, trend.
+
+63
+00:09:51.000 --> 00:09:55.449
+Jared Simonetti: Additionally, if we go, back.
+
+64
+00:09:56.140 --> 00:10:14.189
+Jared Simonetti: We can then view, we have options such as unassign. This would basically unassign the patient from this provider. Clicking this would not affect any of the patient credentials or information. It is only, relevant to the provider side and the patient side, and the fact that they can no longer see the provider's information as they are no longer assigned to them.
+
+65
+00:10:14.550 --> 00:10:27.650
+Jared Simonetti: Additionally, we can assign a new patient, so this would allow us to search for the different patients that are inside of our system, and we can scroll through these and choose them accordingly. For example, we can take David Rodriguez.
+
+66
+00:10:28.330 --> 00:10:30.440
+Jared Simonetti: And assign them to ourselves.
+
+67
+00:10:30.590 --> 00:10:34.249
+Jared Simonetti: And if we view into the, patients category.
+
+68
+00:10:35.160 --> 00:10:37.770
+Jared Simonetti: We will see our new patient right at the bottom here.
+
+69
+00:10:38.750 --> 00:10:41.229
+Jared Simonetti: Back to home. Let's quickly look.
+
+70
+00:10:42.200 --> 00:10:53.799
+Jared Simonetti: at the View Reports section, which is another feature of the main portion of the app, and this just brings us to the reports section we saw earlier, instead of clicking directly through from the particular patient information.
+
+71
+00:10:54.520 --> 00:10:56.560
+Jared Simonetti: That is all for the patient view.
+
+72
+00:10:58.390 --> 00:11:01.080
+Jared Simonetti: And logout brings us to the main page.
+
+73
+00:11:04.030 --> 00:11:23.100
+Vaibhav Ganeriwala: So, okay, now I'll take over for the admin stuff. So, as an admin, you are able to, like, do… have, like, all, like, access to the application. You can, like, create a user, create a medication, delete them, or edit their information. So, here, you can see that I'm trying to log in as an admin.
+
+74
+00:11:23.220 --> 00:11:25.440
+Vaibhav Ganeriwala: So, if you click on,
+
+75
+00:11:26.450 --> 00:11:43.749
+Vaibhav Ganeriwala: the… this is our dashboard, so you can see it's pretty simple and easy to use. So, here are, like, all the statistics of the system that we have. So, there are total 33 users, and which of them? 12 are admins, 10s are providers, and…
+
+76
+00:11:43.750 --> 00:11:51.590
+Vaibhav Ganeriwala: 11 are patients, and all of them are active, and they're only new, one user, in last 7 days.
+
+77
+00:11:51.700 --> 00:11:58.160
+Vaibhav Ganeriwala: So, here are all the medications. There are total 13 medications, including the ones that Jared added.
+
+78
+00:11:58.160 --> 00:12:15.370
+Vaibhav Ganeriwala: So, all of them are active for now, and these are the adherence logs. So, total 23 patients have taken their medications, and all of them has taken on time. No one has missed their medications, skipped them, or, like, has it on pending. So, you can see the rate is now at 100%.
+
+79
+00:12:15.670 --> 00:12:18.279
+Vaibhav Ganeriwala: So, here are the relationships for the…
+
+80
+00:12:18.400 --> 00:12:24.309
+Vaibhav Ganeriwala: user with the provider with the patient. So, you can see 7 of the providers have
+
+81
+00:12:24.710 --> 00:12:38.819
+Vaibhav Ganeriwala: Patients assigned to them, and 10 of the patients have providers assigned to them. For now, you can see this is the admin page, and also there's the dark mode and the light mode. As you see fit, you can change it. For now, I'm keeping it at dark mode.
+
+82
+00:12:39.020 --> 00:12:50.210
+Vaibhav Ganeriwala: So, here is the system configuration. So, you can see, though, that I'm using, that I'm logged in using this Admin1 email, and this is the name of the person.
+
+83
+00:12:50.340 --> 00:13:00.649
+Vaibhav Ganeriwala: So, here's the API configuration that only admins have access to, and there are some, like, more information about the database management and security of our application.
+
+84
+00:13:01.160 --> 00:13:17.889
+Vaibhav Ganeriwala: So, let's go back to the dashboard, and now here you can see, as an admin, I can, like, assign patient to a provider. So, as you can see, Alex Brown has already has a provider, so if I assign Alex to David, it will replace the existing
+
+85
+00:13:18.410 --> 00:13:25.249
+Vaibhav Ganeriwala: existing provider of, like, eX, so if I click on Assign, it will be assigned successfully, and now it will go back.
+
+86
+00:13:25.420 --> 00:13:33.090
+Vaibhav Ganeriwala: So, now you can see Morgan Davies has not, assigned any provider, so I can assign David to him.
+
+87
+00:13:33.930 --> 00:13:43.370
+Vaibhav Ganeriwala: So, one patient can have only one provider, but, like, one provider can have multiple patients, as you can see over here, yeah.
+
+88
+00:13:43.480 --> 00:14:00.160
+Vaibhav Ganeriwala: So now, go to the adherence log. We can, as an admin, they can see, like, who has taken all the medications, and if they want, they can delete the adherence log as well. So we can filter this by taken, missed, or skipped, and also, as an admin, they can export it to PDF.
+
+89
+00:14:00.500 --> 00:14:02.390
+Vaibhav Ganeriwala: As you can see, it works.
+
+90
+00:14:02.930 --> 00:14:18.820
+Vaibhav Ganeriwala: For now. Also, there's option for view medications. As an admin, you should be able to see all the medications, so this is the one, Advil and Academystrophin, that Jared added, and you can see the patient information.
+
+91
+00:14:18.820 --> 00:14:26.290
+Vaibhav Ganeriwala: their email and the dosage information, and prescribed by this person. So, as the admin, you can also, like, click on edit.
+
+92
+00:14:27.020 --> 00:14:34.379
+Vaibhav Ganeriwala: And if I leave this empty, or any of the required fields empty, it will give me an error to fix the following errors.
+
+93
+00:14:34.480 --> 00:14:43.100
+Vaibhav Ganeriwala: So, yeah, let's go back for now, and they can also delete the medication. For now, let me delete,
+
+94
+00:14:44.130 --> 00:14:47.150
+Vaibhav Ganeriwala: You can say, I will…
+
+95
+00:14:47.510 --> 00:14:52.370
+Vaibhav Ganeriwala: You can say Advil, so if I click on delete, it will delete the medication.
+
+96
+00:14:52.470 --> 00:14:58.699
+Vaibhav Ganeriwala: And it will remove it from this list. And you can see it was 13 medications first, now it is 12.
+
+97
+00:14:59.390 --> 00:15:16.300
+Vaibhav Ganeriwala: For now, also, as an admin, they can view all the users and their information. So, here you can see all the users and information. So you can filter this by role, like patients, providers, and admins. So these are all alphabetically
+
+98
+00:15:16.410 --> 00:15:18.389
+Vaibhav Ganeriwala: As, started.
+
+99
+00:15:18.720 --> 00:15:36.040
+Vaibhav Ganeriwala: Also, you can, like, filter by the status. Is it an active account or an inactive account? So, if I click on, like, LF's patient, so, Alex's role, you can see, as the admin, I can change his name, or email, or phone number, or any of the information.
+
+100
+00:15:36.210 --> 00:15:49.489
+Vaibhav Ganeriwala: Or the role, so if I click on, like, active, it will… so the user, Alex, will not be able to log in into the application anymore, and if I save the changes… So for now, let's keep it on, so he can log in.
+
+101
+00:15:50.240 --> 00:15:55.220
+Vaibhav Ganeriwala: Also, there's a functionality to search by name or the email.
+
+102
+00:15:55.370 --> 00:16:03.959
+Vaibhav Ganeriwala: Let me show you… So, I can see Michael, or the email admin for, so here's the information.
+
+103
+00:16:04.070 --> 00:16:11.439
+Vaibhav Ganeriwala: Also, as the admin, they can export all the information to PDF with all the information from the database.
+
+104
+00:16:12.650 --> 00:16:24.220
+Vaibhav Ganeriwala: So, let's go back to the back page of the application. So, if you also click on the top, on the admin dashboard, it will take you to the dashboard itself.
+
+105
+00:16:27.500 --> 00:16:36.769
+Vaibhav Ganeriwala: Yeah, so this is it for the admin page, so let us… let's over, let's head over to Jared for the remaining of the part.
+
+106
+00:16:42.090 --> 00:16:45.880
+Jared Simonetti: Yes, I'm sorry, Vibov, what's on?
+
+107
+00:16:48.230 --> 00:16:48.870
+Vaibhav Ganeriwala: Hello?
+
+108
+00:16:49.540 --> 00:16:50.310
+Jared Simonetti: Yes, hi.
+
+109
+00:16:51.090 --> 00:16:53.440
+Vaibhav Ganeriwala: Yeah, agile, you can take over for the last part.
+
+110
+00:16:54.790 --> 00:16:55.280
+Jared Simonetti: Yes.
+
+111
+00:16:55.700 --> 00:16:58.910
+Jared Simonetti: What do you want me to review on this last portion? We had already gone through the paper slide.
+
+112
+00:16:59.850 --> 00:17:01.099
+Vaibhav Ganeriwala: Yeah, just the…
+
+113
+00:17:01.100 --> 00:17:01.440
+Parth Yashwant Gadekar: do it.
+
+114
+00:17:01.440 --> 00:17:03.240
+Vaibhav Ganeriwala: Last? Yeah. Okay.
+
+115
+00:17:03.570 --> 00:17:16.580
+Parth Yashwant Gadekar: So basically, that was the entire demonstration for the video. And to end with, we have met all the requirements that were, that were asked by the owner, asked by the customer. We have,
+
+116
+00:17:16.660 --> 00:17:17.920
+Parth Yashwant Gadekar: completed…
+
+117
+00:17:17.930 --> 00:17:28.290
+Parth Yashwant Gadekar: The, completed a proper adherence, application for, where the patient has the ac… where a patient and a provider have their specific dashboard where they can
+
+118
+00:17:28.290 --> 00:17:41.149
+Parth Yashwant Gadekar: access the medications, assign the medications, log in as patients, providers, and administrator. Along with that, we have also implemented the chatbot feature, which is the special feature.
+
+119
+00:17:41.180 --> 00:17:51.360
+Parth Yashwant Gadekar: And for the creative part, we have implemented the, we have, dark mode as well as light mode, or depending upon the,
+
+120
+00:17:52.020 --> 00:17:59.839
+Parth Yashwant Gadekar: depending upon the current situation of that device. Along with that, we have calendars and,
+
+121
+00:18:00.390 --> 00:18:07.420
+Parth Yashwant Gadekar: exporting the… exporting the data to PDF feature. So this was the entire project made by us.
+
+122
+00:18:07.860 --> 00:18:09.140
+Parth Yashwant Gadekar: Thank you.
+
