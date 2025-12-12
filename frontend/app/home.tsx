@@ -18,10 +18,10 @@ export default function Home() {
         <View className="flex-row items-center justify-between mb-10">
           {/* Logo + Brand */}
           <View className="flex-row items-center">
-            <View className="w-10 h-10 rounded-2xl bg-indigo-600 items-center justify-center mr-3">
+            <View className="w-14 h-14 rounded-2xl bg-indigo-600 items-center justify-center mr-3 shadow-lg">
               <Image
                 source={require("../assets/images/logo.png")}
-                style={{ width: 24, height: 24, resizeMode: "contain" }}
+                style={{ width: 40, height: 40, resizeMode: "contain" }}
               />
             </View>
             <Text className="text-xl font-bold text-gray-900 dark:text-white">
