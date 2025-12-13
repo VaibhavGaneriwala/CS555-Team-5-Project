@@ -1,23 +1,66 @@
-# 💊 Medication Adherence Tracker (Team 5 — CS 555 Project)
+![Build](https://img.shields.io/github/actions/workflow/status/ParthGadekar0631/Medication-Adherence-Tracker/ci.yml)
+![License](https://img.shields.io/badge/license-MIT-green)
+![Node.js](https://img.shields.io/badge/Node.js-16%2B-brightgreen)
+![MongoDB](https://img.shields.io/badge/Database-MongoDB-green)
+![Expo](https://img.shields.io/badge/Frontend-Expo-blue)
+![OpenAI](https://img.shields.io/badge/AI-OpenAI-purple)
+
+# 💊 Medication Adherence Tracker (MAT)
+
+**Medication Adherence Tracker (MAT)** is a full-stack, cross-platform healthcare application designed to help patients manage their medications, track adherence, and receive timely reminders.  
+The system also enables **providers** and **administrators** to monitor adherence trends and manage patient care efficiently.
+
+This project was developed as the **final course project for CS 555 – Agile Methods for Software Development**.
+
+---
 
 ## 📌 Project Overview
-**Medication Adherence Tracker (MAT)** is a cross-platform health application that helps patients track, manage, and adhere to their prescribed medications.
-The system delivers automated reminders, allows medication **logging and monitoring**, and ensures **secure data management** through a robust **Node.js + MongoDB** backend.
 
-MAT promotes improved patient outcomes through timely notifications and intuitive medication tracking.
+Medication non-adherence is a major challenge in healthcare. MAT addresses this problem by providing:
 
+- Structured medication scheduling
+- Automated reminders
+- Adherence logging and analytics
+- Secure, role-based access for patients, providers, and admins
 
+The application is built using a **React Native (Expo)** frontend and a **Node.js + Express + MongoDB** backend.
+
+---
 
 ## 🚀 Key Features
-- 🔐 **User Authentication:** Secure registration and login using JSON Web Tokens (JWT).  
-- 💊 **Medication Management:** Add, update, and delete medications with dosage and schedule details.  
-- ⏰ **Smart Reminders:** Automated notifications to ensure timely dosage intake.  
-- 📈 **Adherence Tracking:** Track missed and completed doses for progress analysis.  
-- ☁️ **Cloud Integration:** Data stored securely using **MongoDB**.
-- 🧩 **RESTful APIs:** Modular Express controllers and routes for users, medications, and adherence logs.  
-- 💬 **Team Collaboration:** Managed via GitHub, Slack, and Jira for continuous integration and Agile workflow.  
 
+- 🔐 **Secure Authentication**
+  - JWT-based authentication
+  - Role-based access (Patient, Provider, Admin)
 
+- 💊 **Medication Management**
+  - Add, edit, delete medications
+  - Dosage, frequency, and schedule support
+
+- ⏰ **Smart Reminders**
+  - Scheduled reminders for medication intake
+  - Local and push notification support (Expo)
+
+- 📈 **Adherence Tracking**
+  - Logs taken and missed doses
+  - Enables adherence trend analysis
+
+- 👨‍⚕️ **Provider Dashboard**
+  - View assigned patients
+  - Monitor adherence reports
+
+- 🛠️ **Admin Controls**
+  - User and role management
+  - System-level monitoring
+
+- ☁️ **Secure Cloud Storage**
+  - MongoDB for persistent data storage
+
+- 🤖 **AI Chatbot**
+  - Integrated using OpenAI API
+  - Requires a valid OpenAI API key
+
+---
 
 ## 🧠 System Architecture
 ```bash
@@ -37,12 +80,16 @@ MongoDB Services
 ## 🛠️ Technologies Used
 | Category | Tools & Technologies |
 |-----------|----------------------|
+| **Frontend** | React Native, Expo, TypeScript |
 | **Backend** | Node.js, Express.js |
 | **Database & Cloud** | MongoDB |
+| **AI Integration** | OpenAI API |
+| **Notifications** | Expo Notifications |
+| **Authentication** | JWT |
 | **Version Control** | GitHub (Team Repository) |
 | **Project Management** | Jira / Excel (User Stories, Burndown, Velocity) |
 | **Communication** | Slack (Team & Instructor Updates) |
-| **Languages** | JavaScript, JSON, REST API |
+| **CI/CD** | Github Actions |
 
 
 
@@ -58,43 +105,65 @@ MongoDB Services
 ```bash
 Medication-Adherence-Tracker/
 │
+├── .github/
+│   └── workflows/
+│       └── ci.yml                # GitHub Actions CI pipeline
+│
 ├── backend/
-│   ├── config/
-│   │   └── db.js
-│   ├── controllers/
-│   │   ├── authController.js
-│   │   ├── medicationController.js
-│   │   └── adherenceController.js
-│   ├── middleware/
-│   │   └── auth.js
-│   ├── models/
-│   │   ├── User.js
-│   │   ├── Medication.js
-│   │   └── AdherenceLog.js
-│   ├── routes/
-│   │   ├── auth.js
-│   │   ├── medications.js
-│   │   └── adherence.js
-│   ├── utils/
-│   │   └── reminderScheduler.js
-│   ├── server.js
-│   └── package.json
+│   ├── config/                   # Database & app configuration
+│   ├── controllers/              # Route controllers (business logic)
+│   ├── middleware/               # Auth & request middleware
+│   ├── models/                   # Mongoose schemas
+│   ├── routes/                   # Express API routes
+│   ├── tests/                    # Backend unit & integration tests
+│   ├── utils/                    # Helper utilities
+│   ├── node_modules/
+│   ├── .env                      # Environment variables (ignored in Git)
+│   ├── package.json
+│   ├── package-lock.json
+│   ├── reminderScheduler.js      # Medication reminder scheduler
+│   ├── seed.js                   # Database seeding script
+│   └── server.js                 # Backend entry point
 │
 ├── frontend/
 │   ├── app/
-│   │   ├── (patient)/
-│   │   │   ├── MedicationCalendar.tsx
-│   │   │   ├── EditMedication.tsx
-│   │   │   └── PatientHome.tsx
-│   │   ├── (provider)/
-│   │   ├── (admin)/
-│   │   └── utils/
-│   │       └── notifications.ts
+│   │   ├── (admin)/              # Admin screens & routes
+│   │   ├── (patient)/            # Patient screens & flows
+│   │   ├── (provider)/           # Provider screens & dashboards
+│   │   ├── __tests__/             # Frontend tests
+│   │   ├── utils/                # Frontend helpers
+│   │   ├── _layout.tsx            # Root layout (Expo Router)
+│   │   ├── index.tsx              # App entry screen
+│   │   ├── home.tsx
+│   │   ├── login.tsx
+│   │   ├── Register.tsx
+│   │   ├── about.tsx
+│   │   ├── modal.tsx
+│   │   └── +not-found.tsx
+│   │
 │   ├── assets/
-│   ├── app.json
-│   └── package.json
+│   │   ├── fonts/
+│   │   └── images/               # App icons & branding
+│   │
+│   ├── components/               # Reusable UI components
+│   ├── constants/                # App-wide constants
+│   ├── utils/                    # Shared utilities
+│   ├── node_modules/
+│   ├── app.config.js
+│   ├── babel.config.js
+│   ├── eas.json
+│   ├── metro.config.js
+│   ├── tailwind.config.js
+│   ├── tsconfig.json
+│   ├── jest.config.js
+│   ├── global.css
+│   ├── package.json
+│   ├── package-lock.json
+│   └── README.md
 │
-└── README.md
+├── .gitignore
+├── README.md                     # Project documentation
+└── yarn.lock
 ```
 
 
@@ -139,13 +208,14 @@ Medication-Adherence-Tracker/
 
 ## 🧮 Installation & Setup
 ### 🔧 Prerequisites
-- Node.js v16+  
-- Firebase Project & Service Account Key  
+- Node.js v16+   
 - `.env` file with configuration:
   ```bash
   PORT=3000
-  MONGODB_URI=your_mongo_connection_string
+  MONGODB_URI=your_mongodb_connection_string
   JWT_SECRET=your_jwt_secret
+  OPENAI_API_KEY=your_openai_api_key
+
   ```
 
 ### 🧱 Setup Steps
@@ -165,7 +235,7 @@ npm install
 
 ```bash
 # Run the server
-node server.js
+npm start
 ```
 ## 📱 Frontend Setup
 ```bash
@@ -173,14 +243,26 @@ cd frontend
 npm install
 npx expo start -c
 ```
+## 🖼️ Application Screenshots
+
+### Patient Dashboard
+![Patient Dashboard](screenshots/patient-dashboard.png)
+
+### Medication Management
+![Medication Management](screenshots/medication-management.png)
+
+### Provider Dashboard
+![Provider Dashboard](screenshots/provider-dashboard.png)
+
+### Admin Panel
+![Admin Panel](screenshots/admin-dashboard.png)
+
 
 ## 🎯 Future Enhancements
 
-- 🤖 Voice-Assistant Integration (Siri / Google Assistant)  
-- 📱 Push Notifications & Smart Reminders  
-- 🩺 Doctor Dashboard for Prescription Monitoring  
-- 📊 AI-based Adherence Analytics  
-- 🌐 Full Web Dashboard for Admin and Providers  
+- 🤖 Voice-Assistant Integration (Siri / Google Assistant)   
+- 🩺 Wearable device integration  
+- 📊 AI-based Adherence Analytics   
 
 
 ## 🤝 Team 5 — Contributors
@@ -202,6 +284,4 @@ npx expo start -c
 
 ## 📄 License
 
-This project is released under the **MIT License** — free to use, modify, and distribute.
-
- 
+This project is released under the **MIT License** — free to use, modify, and distribute. 
