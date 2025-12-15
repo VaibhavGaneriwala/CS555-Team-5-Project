@@ -246,16 +246,25 @@ npx expo start -c
 ## 🖼️ Application Screenshots
 
 ### Patient Dashboard
-![Patient Dashboard](screenshots/patient-dashboard.png)
+![Patient Dashboard](screenshots/patient-dashboard.jpg)
 
 ### Medication Management
-![Medication Management](screenshots/medication-management.png)
+![Medication Management](screenshots/medication-management.jpg)
 
 ### Provider Dashboard
-![Provider Dashboard](screenshots/provider-dashboard.png)
+![Provider Dashboard](screenshots/provider-dashboard.jpg)
 
 ### Admin Panel
-![Admin Panel](screenshots/admin-dashboard.png)
+![Admin Panel](screenshots/admin-dashboard.jpg)
+
+### Login Portal
+![Login Portal](screenshots/Login.jpg)
+
+### Register Portal
+![Register Portal](screenshots/Register.jpg)
+
+### MedAssist AI
+![Patient MedAssist AI](screenshots/Patient-MedAssit-AI.jpg)
 
 
 ## 🎯 Future Enhancements
