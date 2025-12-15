@@ -197,11 +197,11 @@ Medication-Adherence-Tracker/
 
 
 ## 📊 Sprint 3 Deliverables
-✅ Provider reports and adherence trend analytics implemented  
-✅ Patient dose logging completed and integrated with backend  
-✅ iOS prototype demonstrated with updated patient and provider flows  
-✅ All backend tests passed (controllers and models)  
-✅ GitHub Actions CI runs verified  
+✅ Provider reports and adherence trend analytics implemented
+✅ Patient dose logging completed and integrated with backend
+✅ iOS prototype demonstrated with updated patient and provider flows
+✅ All backend tests passed (controllers and models)
+✅ GitHub Actions CI runs verified
 ✅ Jira board, burnup chart, and velocity report updated 
 
 
@@ -243,28 +243,60 @@ cd frontend
 npm install
 npx expo start -c
 ```
+
+
 ## 🖼️ Application Screenshots
 
-### Patient Dashboard
-![Patient Dashboard](screenshots/patient-dashboard.jpg)
+### 🔐 Authentication
 
-### Medication Management
-![Medication Management](screenshots/medication-management.jpg)
+<p align="center">
+  <img src="screenshots/Login.jpg" width="45%" />
+  <img src="screenshots/Register.jpg" width="45%" />
+</p>
 
-### Provider Dashboard
-![Provider Dashboard](screenshots/provider-dashboard.jpg)
+---
 
-### Admin Panel
-![Admin Panel](screenshots/admin-dashboard.jpg)
+### 🏠 General
 
-### Login Portal
-![Login Portal](screenshots/Login.jpg)
+<p align="center">
+  <img src="screenshots/Home.jpg" width="45%" />
+</p>
 
-### Register Portal
-![Register Portal](screenshots/Register.jpg)
+---
 
-### MedAssist AI
-![Patient MedAssist AI](screenshots/Patient-MedAssit-AI.jpg)
+### 🧍 Patient Views
+
+<p align="center">
+  <img src="screenshots/patient-dashboard.jpg" width="45%" />
+  <img src="screenshots/Patient-Upcoming-Medications.jpg" width="45%" />
+</p>
+
+<p align="center">
+  <img src="screenshots/Patient-Medication-Calendar.jpg" width="45%" />
+  <img src="screenshots/Patient-MedAssist-AI.jpg" width="45%" />
+</p>
+
+---
+
+### 👨‍⚕️ Provider Views
+
+<p align="center">
+  <img src="screenshots/provider-dashboard.jpg" width="45%" />
+  <img src="screenshots/Provider-Assigned-Patients.jpg" width="45%" />
+</p>
+
+---
+
+### 🛠️ Admin Views
+
+<p align="center">
+  <img src="screenshots/admin-dashboard.jpg" width="45%" />
+  <img src="screenshots/Admin-Assign-Patient.jpg" width="45%" />
+</p>
+
+<p align="center">
+  <img src="screenshots/Admin-System-Statistics.jpg" width="45%" />
+</p>
 
 
 ## 🎯 Future Enhancements
