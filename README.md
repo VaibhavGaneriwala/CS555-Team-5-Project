@@ -189,19 +189,29 @@ Medication-Adherence-Tracker/
 
 ## 📊 Sprint 2 Deliverables
 ✅ Migrated backend to MongoDB  
+
 ✅ Implemented automated reminder scheduler (node-cron)
+
 ✅ Integrated frontend notification system (Expo Notifications) 
+
 ✅ Role-based access for admin & provider
+
 ✅ Continuous integration with GitHub actions and manual testing
+
 ✅ Slack communication logs with demo link  
 
 
 ## 📊 Sprint 3 Deliverables
 ✅ Provider reports and adherence trend analytics implemented
+
 ✅ Patient dose logging completed and integrated with backend
+
 ✅ iOS prototype demonstrated with updated patient and provider flows
+
 ✅ All backend tests passed (controllers and models)
+
 ✅ GitHub Actions CI runs verified
+
 ✅ Jira board, burnup chart, and velocity report updated 
 
 
