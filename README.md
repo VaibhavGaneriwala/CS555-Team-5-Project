@@ -101,7 +101,7 @@ MongoDB Services
 2. 💊 **Medication Entry:** Users input medicine name, dosage, and schedule.  
 3. ⏰ **Reminders Triggered:** System sends alerts at the scheduled times.  
 4. 📊 **Adherence Monitoring:** Tracks intake behavior and displays completion stats.  
-5. ☁️ **Data Stored in Firestore:** Ensures secure, real-time cloud storage for all records.
+5. ☁️ **Data Stored in MongoDB:** Ensures secure, real-time cloud storage for all records.
 
 
 ## 🧩 Folder Structure
@@ -183,9 +183,9 @@ Medication-Adherence-Tracker/
 
 
 ## 📊 Sprint 1 Deliverables
-✅ Firebase backend setup and integration  
+✅ MongoDB backend setup and integration  
 ✅ RESTful APIs for users and medications  
-✅ Successful connection between backend and Firebase  
+✅ Successful connection between backend and MongoDB  
 ✅ GitHub commits from all team members  
 ✅ Jira updates with user stories and burndown chart  
 ✅ Slack communication logs with demo link  
@@ -323,8 +323,8 @@ npx expo start -c
 
 | Name | Role | Responsibility |
 |------|------|----------------|
-| **Parth Gadekar** | Backend Developer | Firebase Integration, API Development |
-| **Vaibhav Ganeriwala** | Database Engineer | Data Schema & Firestore Design |
+| **Parth Gadekar** | Backend Developer | MongoDB Integration, API Development |
+| **Vaibhav Ganeriwala** | Database Engineer | Data Schema & MongoDB Design |
 | **Daniel Storms** | Frontend Developer | UI/UX and Mobile App |
 | **Jared Simonetti** | Scrum Master | Jira, Sprint Management, Review |
 

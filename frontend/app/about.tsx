@@ -91,11 +91,11 @@ export default function AboutPage() {
 
         <TouchableOpacity
           onPress={() =>
-            Linking.openURL("https://github.com/VaibhavGaneriwala/CS555-Team-5-Project")
+            Linking.openURL("https://github.com/VaibhavGaneriwala/medication-adherence-tracker")
           }
         >
           <Text className="text-blue-500 dark:text-blue-400 text-lg text-center underline">
-            github.com/VaibhavGaneriwala/CS555-Team-5-Project
+            https://github.com/VaibhavGaneriwala/medication-adherence-tracker
           </Text>
         </TouchableOpacity>
       </View>

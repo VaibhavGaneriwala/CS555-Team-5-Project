@@ -235,7 +235,7 @@ export default function Home() {
             📧 support@matapp.com
           </Text>
           <Text className="text-center text-indigo-700 dark:text-indigo-300 mb-1">
-            GitHub: github.com/VaibhavGaneriwala/CS555-Team-5-Project
+            https://github.com/VaibhavGaneriwala/medication-adherence-tracker
           </Text>
           <TouchableOpacity onPress={() => router.push("/about")}>
             <Text className="text-center text-indigo-600 dark:text-indigo-300 font-semibold mt-2">
